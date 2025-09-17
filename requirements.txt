@@ -1,4 +1,5 @@
+xcsc-tushare
 pandas
-h5py
+pyarrow
 requests
-xcsc_tushare
+
