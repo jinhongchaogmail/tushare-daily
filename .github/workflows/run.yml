@@ -1,53 +1,37 @@
-name: Daily Tushare to HDF5
+ name: Daily Tushare to Parquet
 
 on:
   schedule:
-    - cron: "5 10 * * 1-5"   # 周一到周五，每天 10:05 UTC（即 18:05 CST）
-  workflow_dispatch:         # 允许手动触发
+    - cron: "5 10 * * 1-5"   # 每周一到周五 UTC 10:05 运行（北京时间 18:05）
+  workflow_dispatch:          # 支持手动触发
 
 jobs:
-  run:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180     # 最长3小时，足够你的两小时任务
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
 
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install xcsc-tushare pyarrow pandas requests
 
-      - name: Run script
-        env:
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-          TS_SERVER: "http://116.128.206.39:7172"
-          TS_ENV: "prd"
-          START_DATE: "20220101"
-          OUT_PATH: "DB.h5"
-        run: |
-          python main.py
+    - name: Run script
+      env:
+        TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+      run: |
+        python main.py
 
-      # 方案A：上传为 Artifacts（推荐：不污染仓库，支持大文件，默认保留90天）
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: DB-h5
-          path: DB.h5
-          retention-days: 90
-
-      # 方案B：推回仓库（可选，不建议大文件长期累积）
-      # - name: Commit DB.h5 to repo
-      #   if: ${{ always() }}
-      #   run: |
-      #     git config user.name "github-actions[bot]"
-      #     git config user.email "github-actions[bot]@users.noreply.github.com"
-      #     git add DB.h5
-      #     git commit -m "Update DB.h5 [skip ci]" || echo "No changes to commit"
-      #     git push
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: parquet-data
+        path: data/*.parquet
+        retention-days: 14
