@@ -49,3 +49,10 @@ jobs:
           git add *.parquet
           git commit -m "Update parquet data $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} data
+
+      - name: Upload to Google Drive
+        uses: Jumbo810/Upload_Github_Artifacts_TO_GDrive@v2.3.1
+        with:
+          target: "data/*.parquet"
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          parent_folder_id: ${{ secrets.GDRIVE_FOLDER_ID }}
