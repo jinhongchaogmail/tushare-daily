@@ -39,20 +39,6 @@ jobs:
           path: parquet-data.tar.gz
           retention-days: 14
 
-      - name: Commit and push data
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          git fetch origin data || true
-          git checkout data || git checkout -b data
-
-          mv parquet-data.tar.gz .
-
-          git add parquet-data.tar.gz
-          git commit -m "Update parquet data $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} data
-
       - name: Upload to Google Drive
         uses: Jumbo810/Upload_Github_Artifacts_TO_GDrive@v2.3.1
         with:
