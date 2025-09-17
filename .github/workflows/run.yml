@@ -29,11 +29,14 @@ jobs:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: python main.py
 
+      - name: Compress parquet files
+        run: tar -czf parquet-data.tar.gz data/*.parquet
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: parquet-data
-          path: data/*.parquet
+          path: parquet-data.tar.gz
           retention-days: 14
 
       - name: Commit and push data
@@ -44,15 +47,15 @@ jobs:
           git fetch origin data || true
           git checkout data || git checkout -b data
 
-          mv data/*.parquet .
+          mv parquet-data.tar.gz .
 
-          git add *.parquet
+          git add parquet-data.tar.gz
           git commit -m "Update parquet data $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} data
 
       - name: Upload to Google Drive
         uses: Jumbo810/Upload_Github_Artifacts_TO_GDrive@v2.3.1
         with:
-          target: "data/*.parquet"
+          target: "parquet-data.tar.gz"
           credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
           parent_folder_id: ${{ secrets.GDRIVE_FOLDER_ID }}
