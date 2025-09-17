@@ -2,7 +2,7 @@ name: Daily Tushare to Parquet
 
 on:
   schedule:
-    - cron: "5 10 * * 1-5"   # 每周一到周五 UTC 10:05 运行
+    - cron: "5 10 * * 1-5"
   workflow_dispatch:
 
 jobs:
@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,4 +34,18 @@ jobs:
         with:
           name: parquet-data
           path: data/*.parquet
-          retention-days: 14
+          retention-days: 14      
+
+      - name: Commit and push data
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin data || true
+          git checkout data || git checkout -b data
+
+          mv data/*.parquet .
+
+          git add *.parquet
+          git commit -m "Update parquet data $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} data
