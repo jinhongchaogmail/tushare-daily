@@ -26,8 +26,9 @@ jobs:
       run: python main.py
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: parquet-data
-        path: data/*.parquet
-        retention-days: 14
+  uses: actions/upload-artifact@v4
+  with:
+    name: parquet-data
+    path: data/*.parquet
+    retention-days: 14
+
