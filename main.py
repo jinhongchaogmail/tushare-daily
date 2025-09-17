@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import requests
-import xcsc_tushare as ts
+import xcsc_tushare as ts 
 
 TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")
 TS_SERVER = "http://116.128.206.39:7172"
