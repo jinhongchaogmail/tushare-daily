@@ -1,17 +1,16 @@
- name: Daily Tushare to Parquet
+name: Daily Tushare to Parquet
 
 on:
   schedule:
-    - cron: "5 10 * * 1-5"   # 每周一到周五 UTC 10:05 运行（北京时间 18:05）
-  workflow_dispatch:          # 支持手动触发
+    - cron: "5 10 * * 1-5"
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -19,15 +18,12 @@ jobs:
         python-version: "3.10"
 
     - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install xcsc-tushare pyarrow pandas requests
+      run: pip install -r requirements.txt
 
     - name: Run script
       env:
         TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-      run: |
-        python main.py
+      run: python main.py
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
