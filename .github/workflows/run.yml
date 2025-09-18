@@ -54,6 +54,40 @@ jobs:
       - name: 📂 List target folder (验证 SA 权限)
         run: |
           rclone lsd :drive:${{ secrets.GDRIVE_FOLDER_ID }} \
+            --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }}
+
+      - name: ⬆️ Upload to Google Drive
+        run: |
+          rclone copy parquet-data.tar.gz :drive:${{ secrets.GDRIVE_FOLDER_ID }} \
+            --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
+            --progress -v
+
+      - name: 📂 List files after upload (确认成功)
+        run: |
+          rclone ls :drive:${{ secrets.GDRIVE_FOLDER_ID }} \
+            --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }}        run: tar -czf parquet-data.tar.gz data/*.parquet
+
+      - name: 💾 Upload artifacts (GitHub 保存 14 天)
+        uses: actions/upload-artifact@v4
+        with:
+          name: parquet-data
+          path: parquet-data.tar.gz
+          retention-days: 14
+
+      - name: ⚙️ Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: 🔑 Write sa.json
+        run: |
+          mkdir -p $HOME/.config/rclone
+          echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
+
+      - name: 📂 List target folder (验证 SA 权限)
+        run: |
+          rclone lsd :drive:${{ secrets.GDRIVE_FOLDER_ID }} \
             --drive-service-account-file=$HOME/.config/rclone/sa.json
 
       - name: ⬆️ Upload to Google Drive
