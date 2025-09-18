@@ -10,7 +10,7 @@ jobs:
       - name: Write sa.json
         run: |
           mkdir -p $HOME/.config/rclone
-          echo "${{ secrets.GDRIVE_SA_JSON }}" > $HOME/.config/rclone/sa.json
+          echo "${{ secrets.GDRIVE_SA_JSON }}"| base64 -d > $HOME/.config/rclone/sa.json
 
       - name: Check file info
         run: |
