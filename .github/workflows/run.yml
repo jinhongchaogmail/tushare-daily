@@ -2,46 +2,66 @@ name: Daily Tushare to Parquet
 
 on:
   schedule:
+    # 每周一到周五 UTC 10:05 (北京时间 18:05) 触发
     - cron: "5 10 * * 1-5"
   workflow_dispatch:
+
+# 防止定时任务堆积：新任务触发时会取消旧任务
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: ⬇️ Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Python
+      - name: 🐍 Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run script
+      - name: 🚀 Run script
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: python main.py
 
-      - name: Compress parquet files
+      - name: 📦 Compress parquet files
         run: tar -czf parquet-data.tar.gz data/*.parquet
 
-      - name: Upload artifacts
+      - name: 💾 Upload artifacts (optional, GitHub 保存 14 天)
         uses: actions/upload-artifact@v4
         with:
           name: parquet-data
           path: parquet-data.tar.gz
           retention-days: 14
 
-      - name: Upload to Google Drive
-        uses: Jumbo810/Upload_Github_Artifacts_TO_GDrive@v2.3.1
-        with:
-          target: "parquet-data.tar.gz"
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          parent_folder_id: ${{ secrets.GDRIVE_FOLDER_ID }}
+      - name: ⚙️ Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: 🔑 Configure rclone
+        run: |
+          mkdir -p $HOME/.config/rclone
+          # 写出 Service Account JSON
+          echo "${{ secrets.GDRIVE_SA_JSON }}" > $HOME/.config/rclone/sa.json
+          # 写出 rclone.conf，直接绑定目标文件夹
+          cat > $HOME/.config/rclone/rclone.conf <<EOF
+          [google]
+          type = drive
+          service_account_file = $HOME/.config/rclone/sa.json
+          root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
+          EOF
+
+      - name: ⬆️ Upload to Google Drive with rclone
+        run: |
+          rclone copy parquet-data.tar.gz google: --progress -v
