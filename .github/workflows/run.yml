@@ -2,11 +2,9 @@ name: Daily Tushare to Parquet
 
 on:
   schedule:
-    # 每周一到周五 UTC 10:05 (北京时间 18:05) 触发
-    - cron: "5 10 * * 1-5"
+    - cron: "5 10 * * 1-5"  # 每周一到周五 UTC 10:05（北京时间 18:05）
   workflow_dispatch:
 
-# 防止定时任务堆积：新任务触发时会取消旧任务
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -38,7 +36,7 @@ jobs:
       - name: 📦 Compress parquet files
         run: tar -czf parquet-data.tar.gz data/*.parquet
 
-      - name: 💾 Upload artifacts (optional, GitHub 保存 14 天)
+      - name: 💾 Upload artifacts (GitHub 保存 14 天)
         uses: actions/upload-artifact@v4
         with:
           name: parquet-data
@@ -46,45 +44,24 @@ jobs:
           retention-days: 14
 
       - name: ⚙️ Install rclone
-        run: |
-          curl https://rclone.org/install.sh | sudo bash
+        run: curl https://rclone.org/install.sh | sudo bash
 
       - name: 🔑 Configure rclone
         run: |
           mkdir -p $HOME/.config/rclone
-          # 写出 Service Account JSON
           echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
-          # 写出 rclone.conf，直接绑定目标文件夹
           cat > $HOME/.config/rclone/rclone.conf <<EOF
           [google]
           type = drive
           service_account_file = $HOME/.config/rclone/sa.json
           root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
           EOF
-      - name: 🔍 Debug GDRIVE_SA_JSON content
+
+      - name: 🔍 List remotes (验证配置是否生效)
+        run: rclone listremotes --config=$HOME/.config/rclone/rclone.conf
+
+      - name: ⬆️ Upload to Google Drive
         run: |
-          mkdir -p $HOME/.config/rclone
-          echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
-
-          echo "=== 前五行 ==="
-          head -n 5 $HOME/.config/rclone/sa.json
-
-          echo "=== 后五行 ==="
-          tail -n 5 $HOME/.config/rclone/sa.json
-
-          echo "=== 文件大小 ==="
-          ls -lh $HOME/.config/rclone/sa.json
-      - run: jq . <<< "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > /dev/null
-
-      
-      - name: 📤 Upload sa.json for debugging
-        uses: actions/upload-artifact@v4
-        with:
-          name: sa-json-debug
-          path: $HOME/.config/rclone/sa.json
-          retention-days: 1
-
-
-      - name: ⬆️ Upload to Google Drive with rclone
-        run: |
-          rclone copy parquet-data.tar.gz google: --progress -v
+          rclone copy parquet-data.tar.gz google: \
+            --config=$HOME/.config/rclone/rclone.conf \
+            --progress -v
