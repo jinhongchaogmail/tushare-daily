@@ -53,7 +53,7 @@ jobs:
         run: |
           mkdir -p $HOME/.config/rclone
           # 写出 Service Account JSON
-          echo "${{ secrets.GDRIVE_SA_JSON }}" > $HOME/.config/rclone/sa.json
+          echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
           # 写出 rclone.conf，直接绑定目标文件夹
           cat > $HOME/.config/rclone/rclone.conf <<EOF
           [google]
@@ -64,7 +64,7 @@ jobs:
       - name: 🔍 Debug GDRIVE_SA_JSON content
         run: |
           mkdir -p $HOME/.config/rclone
-          echo "${{ secrets.GDRIVE_SA_JSON }}" > $HOME/.config/rclone/sa.json
+          echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
 
           echo "=== 前五行 ==="
           head -n 5 $HOME/.config/rclone/sa.json
@@ -74,7 +74,7 @@ jobs:
 
           echo "=== 文件大小 ==="
           ls -lh $HOME/.config/rclone/sa.json
-      - run: jq . <<< "${{ secrets.GDRIVE_SA_JSON }}" > /dev/null
+      - run: jq . <<< "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > /dev/null
 
       
       - name: 📤 Upload sa.json for debugging
