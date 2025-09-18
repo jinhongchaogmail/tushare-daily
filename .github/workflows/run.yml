@@ -61,12 +61,28 @@ jobs:
           service_account_file = $HOME/.config/rclone/sa.json
           root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
           EOF
+      - name: 🔍 Debug GDRIVE_SA_JSON content
+        run: |
+          mkdir -p $HOME/.config/rclone
+          echo "${{ secrets.GDRIVE_SA_JSON }}" > $HOME/.config/rclone/sa.json
+
+          echo "=== 前五行 ==="
+          head -n 5 $HOME/.config/rclone/sa.json
+
+          echo "=== 后五行 ==="
+          tail -n 5 $HOME/.config/rclone/sa.json
+
+          echo "=== 文件大小 ==="
+          ls -lh $HOME/.config/rclone/sa.json
+
+      
       - name: 📤 Upload sa.json for debugging
         uses: actions/upload-artifact@v4
         with:
           name: sa-json-debug
           path: $HOME/.config/rclone/sa.json
           retention-days: 1
+
 
       - name: ⬆️ Upload to Google Drive with rclone
         run: |
