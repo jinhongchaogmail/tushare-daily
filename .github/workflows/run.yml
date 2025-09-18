@@ -2,7 +2,7 @@ name: Daily Tushare to Parquet
 
 on:
   schedule:
-    - cron: "5 10 * * 1-5"  # 每周一到周五 UTC 10:05（北京时间 18:05）
+    - cron: "5 10 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -36,13 +36,6 @@ jobs:
       - name: 📦 Compress parquet files
         run: tar -czf parquet-data.tar.gz data/*.parquet
 
-      - name: 💾 Upload artifacts (GitHub 保存 14 天)
-        uses: actions/upload-artifact@v4
-        with:
-          name: parquet-data
-          path: parquet-data.tar.gz
-          retention-days: 14
-
       - name: ⚙️ Install rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
@@ -51,21 +44,26 @@ jobs:
           mkdir -p $HOME/.config/rclone
           echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
 
-      - name: 📂 List shared-with-me (验证 SA 能看到文件夹)
+      - name: 🔍 Verify access to target folder by ID
         run: |
+          # 把 folder_id 当根目录，用空路径列目录
           rclone lsd :drive: \
             --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
             --drive-shared-with-me
 
-      - name: ⬆️ Upload to Google Drive (tushare-data 文件夹)
+      - name: ⬆️ Upload to Google Drive (force root to folder_id)
         run: |
-          rclone copy parquet-data.tar.gz :drive:tushare-data \
+          # 重点：目标写到 :drive:（空路径），靠 --drive-root-folder-id 锁定到共享文件夹
+          rclone copy parquet-data.tar.gz :drive: \
             --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
             --drive-shared-with-me \
             --progress -v
 
-      - name: 📂 List files after upload (确认成功)
+      - name: 📂 List files after upload
         run: |
-          rclone ls :drive:tushare-data \
+          rclone ls :drive: \
             --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
             --drive-shared-with-me
