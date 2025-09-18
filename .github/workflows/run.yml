@@ -61,6 +61,12 @@ jobs:
           service_account_file = $HOME/.config/rclone/sa.json
           root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
           EOF
+      - name: 📤 Upload sa.json for debugging
+        uses: actions/upload-artifact@v4
+        with:
+          name: sa-json-debug
+          path: $HOME/.config/rclone/sa.json
+          retention-days: 1
 
       - name: ⬆️ Upload to Google Drive with rclone
         run: |
