@@ -67,7 +67,7 @@ def downcast(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-    ts_codes = list_main_board_cs()
+    ts_codes = list_main_board_cs().head(10)
     skipped = []
 
     for x in ts_codes["ts_code"]:
