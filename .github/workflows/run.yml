@@ -74,6 +74,7 @@ jobs:
 
           echo "=== 文件大小 ==="
           ls -lh $HOME/.config/rclone/sa.json
+      - run: jq . <<< "${{ secrets.GDRIVE_SA_JSON }}" > /dev/null
 
       
       - name: 📤 Upload sa.json for debugging
