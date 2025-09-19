@@ -39,31 +39,15 @@ jobs:
       - name: ⚙️ Install rclone
         run: curl https://rclone.org/install.sh | sudo bash
 
-      - name: 🔑 Write sa.json
+      - name: 🔑 Restore rclone.conf
         run: |
           mkdir -p $HOME/.config/rclone
-          echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
+          echo "${{ secrets.RCLONE_CONF_B64 }}" | base64 -d > $HOME/.config/rclone/rclone.conf
 
-      - name: 🔍 Verify access to target folder by ID
+      - name: ⬆️ Upload to Google Drive
         run: |
-          # 把 folder_id 当根目录，用空路径列目录
-          rclone lsd :drive: \
-            --drive-service-account-file=$HOME/.config/rclone/sa.json \
-            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
-            --drive-shared-with-me
-
-      - name: ⬆️ Upload to Google Drive (force root to folder_id)
-        run: |
-          # 重点：目标写到 :drive:（空路径），靠 --drive-root-folder-id 锁定到共享文件夹
-          rclone copy parquet-data.tar.gz :drive: \
-            --drive-service-account-file=$HOME/.config/rclone/sa.json \
-            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
-            --drive-shared-with-me \
-            --progress -v
+          rclone copy parquet-data.tar.gz gdrive:tushare-data --progress -v
 
       - name: 📂 List files after upload
         run: |
-          rclone ls :drive: \
-            --drive-service-account-file=$HOME/.config/rclone/sa.json \
-            --drive-root-folder-id=${{ secrets.GDRIVE_FOLDER_ID }} \
-            --drive-shared-with-me
+          rclone ls gdrive:tushare-data
