@@ -46,7 +46,7 @@ jobs:
 
       - name: ⬆️ Upload to Google Drive
         run: |
-          rclone copy parquet-data.tar.gz gdrive:tushare-data --progress -v
+          rclone copy parquet-data.tar.gz "gdrive:Colab Notebooks" --progress -v
 
       - name: 📂 List files after upload
         run: |
