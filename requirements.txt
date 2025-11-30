@@ -1,0 +1,6 @@
+pandas
+tushare
+catboost
+requests
+pyarrow
+fastparquet

@@ -38,7 +38,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: strategy-report
-        path: optuna/quant/strategy_report.md
+        path: |
+          optuna/quant/strategy_report.md
+          optuna/quant/strategy_report.csv
         
     - name: Add to Job Summary
       if: always()
@@ -48,3 +50,27 @@ jobs:
         else
           echo "No report generated." >> $GITHUB_STEP_SUMMARY
         fi
+
+    - name: Create Issue with Report
+      if: success()
+      uses: peter-evans/create-issue-from-file@v4
+      with:
+        title: 每日策略报告 ${{ github.event.schedule }}
+        content-filepath: optuna/quant/strategy_report.md
+        labels: report, automated
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Send Email
+      if: success()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.qq.com
+        server_port: 465
+        username: ${{ secrets.MAIL_USERNAME }}
+        password: ${{ secrets.MAIL_PASSWORD }}
+        subject: 每日量化策略报告
+        body: file://optuna/quant/strategy_report.md
+        to: ${{ secrets.MAIL_TO }}
+        from: GitHub Actions
+        secure: true
+        attachments: optuna/quant/strategy_report.csv

@@ -38,7 +38,7 @@ except ImportError:
 
 # 如果存在用户虚拟环境，尽早在进程启动时切换到该 Python 解释器，
 # 以确保后续的 pip 安装与模块导入在同一解释器中生效。
-_preferred_venv = os.environ.get('VENV_PATH', '/home/jin/ml-env')
+_preferred_venv = os.environ.get('VENV_PATH', '/home/jin/.venv')
 _preferred_python = os.path.join(_preferred_venv, 'bin', 'python')
 if os.path.exists(_preferred_python):
     # 如果当前解释器不是虚拟环境的 python，则用 execv 切换到虚拟环境解释器
@@ -106,7 +106,7 @@ def bootstrap_dependencies():
             return False
 
     # 检测并优先使用虚拟环境中的 python 来执行 pip（如果存在）
-    venv_dir = os.environ.get('VENV_PATH', '/home/jin/ml-env')
+    venv_dir = os.environ.get('VENV_PATH', '/home/jin/.venv')
     venv_python = os.path.join(venv_dir, 'bin', 'python')
     if os.path.exists(venv_python):
         pip_python = venv_python

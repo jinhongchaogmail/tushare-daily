@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import requests
-import xcsc_tushare as ts
+import tushare as ts
 import catboost as cb
 import json
 import sys
@@ -31,7 +31,8 @@ if not TUSHARE_TOKEN:
     raise RuntimeError("Missing env TUSHARE_TOKEN")
 
 ts.set_token(TUSHARE_TOKEN)
-pro = ts.pro_api(env=TS_ENV, server=TS_SERVER)
+# pro = ts.pro_api(env=TS_ENV, server=TS_SERVER) # Modified for standard tushare
+pro = ts.pro_api()
 hist_fields = "trade_date,open,high,low,close,change,pct_chg,volume,amount"
 
 # --- 全局变量 ---
@@ -210,6 +211,11 @@ def generate_report():
             f.write("### 🔴 重点关注 (Top 50)\n")
             f.write(df_report.head(50).to_markdown(index=False))
         print(f"报告已保存至: {report_path}")
+        
+        # 保存为 CSV (用于邮件附件或下载)
+        csv_path = report_path.replace(".md", ".csv")
+        df_report.to_csv(csv_path, index=False)
+        print(f"CSV 报告已保存至: {csv_path}")
     else:
         print("今日无符合条件的交易机会。")
         # 也要生成一个空报告，防止 Action 报错
