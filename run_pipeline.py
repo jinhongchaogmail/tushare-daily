@@ -193,7 +193,7 @@ def downcast(df: pd.DataFrame) -> pd.DataFrame:
 def generate_report():
     """生成最终报告"""
     today_str = datetime.now().strftime("%Y-%m-%d")
-    report_path = "optuna/quant/strategy_report.md"
+    report_path = "reports/strategy_report.md"
     
     if report:
         # 按上涨概率排序
