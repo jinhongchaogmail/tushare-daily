@@ -5,14 +5,20 @@ import os
 import glob
 import sys
 from datetime import datetime
-from feature_engineering import apply_technical_indicators
+
+# 添加 shared 到路径
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'shared'))
+try:
+    from feature_engineering import apply_technical_indicators
+except ImportError:
+    print("Warning: Could not import feature_engineering from shared.")
 
 # --- 配置 ---
-# 假设脚本运行在 optuna/quant 目录下
+# 假设脚本运行在 training/quant 目录下
 # 数据在项目根目录的 data/ 下
 DATA_DIR = '../../data' 
-MODEL_PATH = '../model/catboost_final_model.cbm'
-PARAMS_PATH = '../model/final_model_params.json'
+MODEL_PATH = '../../models/catboost_final_model.cbm'
+PARAMS_PATH = '../../models/final_model_params.json'
 MIN_RETURN_THRESHOLD = 0.03  # 最小预期收益门槛 (3%)
 
 def load_parquet_data(file_path):

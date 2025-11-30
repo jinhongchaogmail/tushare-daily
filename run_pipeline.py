@@ -8,8 +8,8 @@ import json
 import sys
 from datetime import datetime
 
-# 添加 optuna/quant 到路径以便导入 feature_engineering
-sys.path.append(os.path.join(os.getcwd(), 'optuna/quant'))
+# 添加 shared 到路径以便导入 feature_engineering
+sys.path.append(os.path.join(os.getcwd(), 'shared'))
 try:
     from feature_engineering import apply_technical_indicators
 except ImportError:
@@ -23,8 +23,8 @@ START_DATE = "20220101"
 OUT_DIR = "data"
 
 # 模型路径
-MODEL_PATH = 'optuna/model/catboost_final_model.cbm'
-PARAMS_PATH = 'optuna/model/final_model_params.json'
+MODEL_PATH = 'models/catboost_final_model.cbm'
+PARAMS_PATH = 'models/final_model_params.json'
 MIN_RETURN_THRESHOLD = 0.03
 
 if not TUSHARE_TOKEN:
