@@ -24,18 +24,23 @@ def load_parquet_data(file_path):
             
         # 确保列名匹配 feature_engineering 的要求
         # main.py 的列: trade_date, open, high, low, close, volume, amount, ...
-        # feature_engineering 需要: trade_date (或 date), open, high, low, close, volume
-        
-        # 重命名
-        df = df.rename(columns={'trade_date': 'date'})
+        # feature_engineering 需要: trade_date, open, high, low, close, volume
         
         # 确保按日期升序 (main.py 似乎已经是倒序或乱序，这里强制排序)
-        df = df.sort_values('date').reset_index(drop=True)
+        if 'trade_date' in df.columns:
+            df = df.sort_values('trade_date').reset_index(drop=True)
+        elif 'date' in df.columns:
+             df = df.rename(columns={'date': 'trade_date'}).sort_values('trade_date').reset_index(drop=True)
         
         # 只保留原始列，重新计算特征以确保一致性
-        required_cols = ['date', 'open', 'high', 'low', 'close', 'volume']
+        required_cols = ['trade_date', 'open', 'high', 'low', 'close', 'volume']
         if not all(col in df.columns for col in required_cols):
-            return None
+            # 尝试兼容旧列名
+            if 'date' in df.columns and 'trade_date' not in df.columns:
+                 df = df.rename(columns={'date': 'trade_date'})
+            
+            if not all(col in df.columns for col in required_cols):
+                return None
             
         return df[required_cols]
     except Exception as e:
@@ -88,7 +93,7 @@ def main():
             
             # 取最后一行 (最新交易日)
             latest_row = df_features.iloc[[-1]].copy()
-            current_date = latest_row['date'].values[0]
+            current_date = latest_row['trade_date'].values[0]
             
             # 简单的日期过滤：如果数据不是最近几天的，可能停牌或未更新，跳过
             # 这里暂不严格过滤，只在报告中显示日期
