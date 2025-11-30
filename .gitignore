@@ -9,3 +9,4 @@ optuna_results/
 venv_new/
 data/
 optuna/temp_repo/
+optuna_env/
