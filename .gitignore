@@ -1,0 +1,8 @@
+__pycache__/
+*.parquet
+*.tar.gz
+tmp/
+optuna_env/
+.ipynb_checkpoints/
+catboost_info/
+optuna_results/
