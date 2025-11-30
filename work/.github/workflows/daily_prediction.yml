@@ -1,0 +1,67 @@
+name: Daily Stock Prediction
+
+on:
+  schedule:
+    # 北京时间 17:30 (UTC 09:30) 运行，确保收盘后数据已更新
+    - cron: '30 9 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r optuna/quant/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+        
+    - name: Run Data Download (Main)
+      env:
+        TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+      run: |
+        # 运行根目录下的 main.py 下载数据
+        python main.py
+        
+    - name: Run Prediction Strategy
+      env:
+        PYTHONPATH: ${{ github.workspace }}/optuna
+      run: |
+        # 确保脚本能找到 feature_engineering 模块
+        # 假设目录结构为:
+        # root/
+        #   main.py (下载数据到 data/)
+        #   optuna/
+        #     quant/
+        #       predict_strategy.py
+        #       feature_engineering.py
+        #     model/
+        #       catboost_final_model.cbm
+        #       final_model_params.json
+        
+        cd optuna/quant
+        python predict_strategy.py
+        
+    - name: Upload Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: strategy-report
+        path: optuna/quant/strategy_report.md
+        
+    - name: Add to Job Summary
+      if: always()
+      run: |
+        if [ -f optuna/quant/strategy_report.md ]; then
+          cat optuna/quant/strategy_report.md >> $GITHUB_STEP_SUMMARY
+        else
+          echo "No report generated." >> $GITHUB_STEP_SUMMARY
+        fi
