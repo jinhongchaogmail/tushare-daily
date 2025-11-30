@@ -106,25 +106,34 @@ def main():
             signal = "⚪ 观望"
             position = 0.0
             reason = ""
+            is_candidate = False
             
+            # 宽松筛选：只要上涨概率大于下跌概率，且大于35%，就列入观察
+            if prob_up > prob_down and prob_up > 0.35:
+                signal = "🔵 关注"
+                reason = f"看涨({prob_up:.1%})"
+                is_candidate = True
+
             # 强买入信号
             if prob_up > 0.4 and prob_up > prob_down and prob_up > prob_flat:
                 if implied_return > MIN_RETURN_THRESHOLD:
                     signal = "🔴 买入"
                     position = min(1.0, 0.02 / (current_vol + 1e-5))
                     reason = f"高胜率({prob_up:.0%}) 高赔率(>{implied_return:.1%})"
-                    
-                    # 只记录买入或强卖出信号，减少报告长度
-                    report.append({
-                        '代码': ts_code,
-                        '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
-                        '信号': signal,
-                        '上涨概率': f"{prob_up:.1%}",
-                        '波动率': f"{current_vol:.1%}",
-                        '预期收益': f"{implied_return:.1%}",
-                        '建议仓位': f"{position:.1%}",
-                        '理由': reason
-                    })
+                    is_candidate = True
+            
+            if is_candidate:
+                report.append({
+                    '代码': ts_code,
+                    '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
+                    '信号': signal,
+                    '上涨概率': f"{prob_up:.1%}",
+                    '波动率': f"{current_vol:.1%}",
+                    '预期收益': f"{implied_return:.1%}",
+                    '建议仓位': f"{position:.1%}",
+                    '理由': reason,
+                    'prob_up_raw': prob_up
+                })
             
         except Exception as e:
             # print(f"[{ts_code}] Error: {e}") # 减少日志噪音
@@ -133,9 +142,9 @@ def main():
     # 4. 生成报告
     if report:
         # 按上涨概率排序
-        df_report = pd.DataFrame(report).sort_values('上涨概率', ascending=False)
+        df_report = pd.DataFrame(report).sort_values('prob_up_raw', ascending=False).drop(columns=['prob_up_raw'])
         
-        print(f"\n=== 每日策略报告 ({len(df_report)} 支股票入选) ===")
+        print(f"\n=== 每日策略报告 (Top 20 / {len(df_report)}) ===")
         print(df_report.head(20).to_markdown(index=False)) # 终端只打印前20
         
         # 保存为 Markdown
