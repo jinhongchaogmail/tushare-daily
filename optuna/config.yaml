@@ -1,0 +1,94 @@
+# 配置文件 (v16)
+# 所有可配置参数集中在此
+
+# 数据处理参数
+data:
+  max_files_to_process: 100
+  min_dataframe_rows: 20
+  cache_enabled: true
+  cache_version: "v16"  # 版本变更时自动失效缓存
+
+# 特征工程参数
+features:
+  technical_indicators:
+    - sma: [5, 10, 20]
+    - rsi: 14
+    - macd: ~
+    - bbands: ~
+    - adx: ~
+    - atr: ~
+    - stoch: ~
+    - cmf: ~
+  
+  lagged_features:
+    - close_pct_change: true
+    - close_lag1: true
+    - return_5d: true
+  
+  target_future_period: 5
+  # 目标变量范围（可动态调整）
+  target_bounds:
+    lower: -0.0205932534665812
+    upper: 0.0205932534665812
+
+# Optuna 寻优参数
+optuna:
+  n_trials: 1000
+  n_jobs: 1  # 设为1避免与CatBoost多线程冲突
+  tsc_splits: 2  # 优化：从5减少到3
+  future_gap: 5  # CV训练/验证集之间的间隔天数，防止标签泄露
+  
+  # 中止条件
+  pruner_startup: 2  # 优化：从5减少到2
+  # n_warmup_steps 硬编码为 1 (不从 Config 读取)
+  
+  # 参数搜索空间 (v23 更新)
+  search_space:
+    # threshold: [0.001, 0.8]  # v23: 已废弃，改用动态波动率乘数
+    vol_multiplier: [0.5, 1.5]  # v23: 波动率乘数范围
+    offset: [0.0, 0.0]  # v23: 固定为0
+    iterations: [100, 1000]
+    learning_rate: [1e-4, 1.0]
+    depth: [6, 12]
+    subsample: [0.5, 1.0]
+    l2_leaf_reg: [0.0, 5.0]
+    colsample_bylevel: [0.5, 1.0]  # CPU only
+  study_name: catboost_stock_3class_v16
+
+# 类别平衡参数
+balance:
+  penalty_threshold: 0.15
+  flat_weight_multiplier: 10
+  weights:
+    down: 1.0
+    flat: 2.0
+    up: 1.0
+
+# 训练参数
+training:
+  train_test_split_ratio: 0.8
+  random_seed: 42
+  
+  # 内存优化
+  dtype_optimization:
+    float64_to_float32: true
+    int64_to_int16: ["target_class_3"]
+    int64_to_int32: ["stock_code_encoded"]
+
+# 输出和可视化
+output:
+  save_plots: true
+  plot_formats: ["png"]
+  save_intermediate_metrics: true
+  
+# 日志和监控
+logging:
+  level: "INFO"  # DEBUG/INFO/WARNING
+  show_verbose_output: false
+  save_logs_to_file: true
+  log_interval: 100  # 每N个文件/trial打印一次进度
+
+# GPU 设置
+gpu:
+  auto_detect: true
+  fallback_to_cpu: true
