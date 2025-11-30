@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import requests
-import tushare as ts
+import xcsc_tushare as ts
 import catboost as cb
 import json
 import sys
@@ -31,8 +31,7 @@ if not TUSHARE_TOKEN:
     raise RuntimeError("Missing env TUSHARE_TOKEN")
 
 ts.set_token(TUSHARE_TOKEN)
-# pro = ts.pro_api(env=TS_ENV, server=TS_SERVER) # Modified for standard tushare
-pro = ts.pro_api()
+pro = ts.pro_api(env=TS_ENV, server=TS_SERVER)
 hist_fields = "trade_date,open,high,low,close,change,pct_chg,volume,amount"
 
 # --- 全局变量 ---
