@@ -1,0 +1,24 @@
+name: Debug SA JSON
+
+on:
+  workflow_dispatch:   # 手动触发
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write sa.json
+        run: |
+          mkdir -p $HOME/.config/rclone
+          echo "${{ secrets.GDRIVE_SA_JSON }}"| base64 -d > $HOME/.config/rclone/sa.json
+
+      - name: Check file info
+        run: |
+          ls -lh $HOME/.config/rclone/sa.json
+          head -n 5 $HOME/.config/rclone/sa.json
+          tail -n 5 $HOME/.config/rclone/sa.json
+
+      - name: Validate JSON
+        run: |
+          jq . $HOME/.config/rclone/sa.json > /dev/null
+          echo "✅ JSON 格式校验通过"

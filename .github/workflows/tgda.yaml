@@ -1,0 +1,27 @@
+name: Test Google Drive Access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⚙️ Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: 🔑 Write sa.json
+        run: |
+          mkdir -p $HOME/.config/rclone
+          echo "${{ secrets.GDRIVE_SA_JSON }}" | base64 -d > $HOME/.config/rclone/sa.json
+
+      - name: 📂 List "My Drive" root (SA 自己的盘，应该是空的)
+        run: |
+          rclone lsd :drive: \
+            --drive-service-account-file=$HOME/.config/rclone/sa.json
+
+      - name: 📂 List shared-with-me (别人共享给 SA 的文件夹)
+        run: |
+          rclone lsd :drive: \
+            --drive-service-account-file=$HOME/.config/rclone/sa.json \
+            --drive-shared-with-me

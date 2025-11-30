@@ -1,0 +1,5 @@
+xcsc-tushare
+pandas
+pyarrow
+requests
+
