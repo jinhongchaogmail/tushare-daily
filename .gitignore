@@ -8,3 +8,4 @@ catboost_info/
 optuna_results/
 venv_new/
 data/
+optuna/temp_repo/
