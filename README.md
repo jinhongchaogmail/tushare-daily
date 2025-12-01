@@ -28,7 +28,7 @@
 
 1. 安装依赖:
    ```bash
-   pip install -r optuna/quant/requirements.txt
+   pip install -r requirements.txt
    ```
 2. 设置 Tushare Token:
    ```bash
@@ -36,6 +36,6 @@
    ```
 3. 运行流水线:
    ```bash
-   python run_pipeline.py
+   python 预测.py
    ```
 
