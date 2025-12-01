@@ -1,15 +1,61 @@
+# Python cache
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+optuna_env/
+venv/
+venv_new/
+.venv/
+env/
+
+# Data files
 *.parquet
 *.tar.gz
-tmp/
-optuna_env/
+data/
+
+# Jupyter Notebook checkpoints
 .ipynb_checkpoints/
+
+# Temporary files
+tmp/
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+*.bak
+
+# Training and Optuna results
 catboost_info/
 optuna_results/
-venv_new/
-data/
 optuna/temp_repo/
-optuna_env/
 training/temp_repo/
-secrets.sh
+feature_cache_*.parquet
+
+# Reports (generated)
 reports/
+
+# Secrets
+secrets.sh
+.env
+*.env.local
+
+# IDE settings
+.idea/
+.vscode/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# Log files
+*.log
+
+# CSV reports (generated during prediction)
+skipped.csv
