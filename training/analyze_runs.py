@@ -65,9 +65,13 @@ except ImportError:
 class RunAnalyzer:
     """单个训练运行分析器"""
     
-    def __init__(self, run_path: str):
+    # 默认 study name，可以通过类变量修改
+    DEFAULT_STUDY_NAME = "catboost_stock_3class_v16"
+    
+    def __init__(self, run_path: str, study_name: str = None):
         self.run_path = run_path
         self.run_name = os.path.basename(run_path)
+        self.study_name = study_name or self.DEFAULT_STUDY_NAME
         self.study = None
         self.trials_df = None
         self.best_params = None
@@ -82,7 +86,7 @@ class RunAnalyzer:
                 storage_url = f"sqlite:///{db_path}"
                 try:
                     self.study = optuna.load_study(
-                        study_name="catboost_stock_3class_v16",
+                        study_name=self.study_name,
                         storage=storage_url
                     )
                 except Exception:
@@ -165,9 +169,10 @@ class RunAnalyzer:
 class MultiRunComparator:
     """多运行比较器"""
     
-    def __init__(self, results_dir: str = None, run_names: List[str] = None):
+    def __init__(self, results_dir: str = None, run_names: List[str] = None, study_name: str = None):
         self.results_dir = results_dir
         self.run_names = run_names or []
+        self.study_name = study_name
         self.analyzers: List[RunAnalyzer] = []
         self.comparison_df = None
         
@@ -211,7 +216,7 @@ class MultiRunComparator:
                 print(f"  跳过: {name} (目录不存在)")
                 continue
             
-            analyzer = RunAnalyzer(run_path)
+            analyzer = RunAnalyzer(run_path, study_name=self.study_name)
             if analyzer.load():
                 self.analyzers.append(analyzer)
                 print(f"  ✓ 已加载: {name}")
@@ -325,25 +330,45 @@ class MultiRunComparator:
                 ax1.set_title('各运行最佳得分对比')
                 ax1.invert_yaxis()
                 
-                # 添加数值标签
+                # 添加数值标签 - 使用相对偏移量
+                max_val = df_plot['best_value'].max()
+                min_val = df_plot['best_value'].min()
+                offset = (max_val - min_val) * 0.02 if max_val > min_val else 0.005
                 for bar, val in zip(bars, df_plot['best_value']):
-                    ax1.text(bar.get_width() + 0.001, bar.get_y() + bar.get_height()/2,
+                    ax1.text(bar.get_width() + offset, bar.get_y() + bar.get_height()/2,
                             f'{val:.4f}', va='center', fontsize=9)
         
         # 2. 试验完成率饼图
         ax2 = axes[0, 1]
         if 'n_completed' in self.comparison_df.columns and 'n_pruned' in self.comparison_df.columns:
-            total_completed = self.comparison_df['n_completed'].sum()
-            total_pruned = self.comparison_df['n_pruned'].sum()
-            total_trials = self.comparison_df.get('n_trials', pd.Series([0])).sum()
+            total_completed = int(self.comparison_df['n_completed'].fillna(0).sum())
+            total_pruned = int(self.comparison_df['n_pruned'].fillna(0).sum())
+            if 'n_trials' in self.comparison_df.columns:
+                total_trials = int(self.comparison_df['n_trials'].fillna(0).sum())
+            else:
+                total_trials = total_completed + total_pruned
             
             if total_trials > 0:
-                other = total_trials - total_completed - total_pruned
-                sizes = [total_completed, total_pruned, max(0, other)]
-                labels = [f'完成 ({total_completed})', f'剪枝 ({total_pruned})', f'其他 ({max(0, other)})']
-                colors = ['#2ecc71', '#e74c3c', '#95a5a6']
+                other = max(0, total_trials - total_completed - total_pruned)
+                # 过滤掉大小为 0 的部分
+                sizes = []
+                labels = []
+                colors_list = []
+                if total_completed > 0:
+                    sizes.append(total_completed)
+                    labels.append(f'完成 ({total_completed})')
+                    colors_list.append('#2ecc71')
+                if total_pruned > 0:
+                    sizes.append(total_pruned)
+                    labels.append(f'剪枝 ({total_pruned})')
+                    colors_list.append('#e74c3c')
+                if other > 0:
+                    sizes.append(other)
+                    labels.append(f'其他 ({other})')
+                    colors_list.append('#95a5a6')
                 
-                ax2.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+                if sizes:
+                    ax2.pie(sizes, labels=labels, colors=colors_list, autopct='%1.1f%%', startangle=90)
                 ax2.set_title('全部试验状态分布')
         
         # 3. 得分趋势（如果有时间戳）
@@ -470,6 +495,13 @@ def main():
         help='静默模式，只输出错误'
     )
     
+    parser.add_argument(
+        '--study-name', '-s',
+        type=str,
+        default=None,
+        help='Optuna study 名称 (默认: catboost_stock_3class_v16)'
+    )
+    
     args = parser.parse_args()
     
     # 默认结果目录
@@ -492,7 +524,7 @@ def main():
         sys.exit(1)
     
     # 创建比较器
-    comparator = MultiRunComparator(results_dir=args.results_dir)
+    comparator = MultiRunComparator(results_dir=args.results_dir, study_name=args.study_name)
     comparator.load_runs(args.runs)
     
     if not comparator.analyzers:
