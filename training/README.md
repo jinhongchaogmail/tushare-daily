@@ -121,6 +121,29 @@ logging:
 - 📋 `final_model_params.json` - 最优参数
 - 🖼️ `opt_*.png` - 优化过程可视化
 
+## 📊 结果分析工具
+
+使用 `analyze_runs.py` 比较多次训练运行的结果：
+
+```bash
+# 分析所有运行
+python analyze_runs.py --results-dir ~/gdrive/optuna_results
+
+# 分析特定运行
+python analyze_runs.py --results-dir ~/gdrive/optuna_results \
+    --runs run_20251201_160807 run_20251201_215750
+
+# 导出报告
+python analyze_runs.py -d ~/gdrive/optuna_results \
+    --output-csv comparison.csv --output-plot comparison.png
+```
+
+**功能特性**:
+- 🔄 自动加载多个运行的数据
+- 📈 比较 F1 得分、试验完成率等指标
+- 🎨 生成可视化比较图表
+- 📝 输出中文摘要报告
+
 ## ❓ 常见问题
 
 ### Q: 内存不足？
@@ -143,6 +166,7 @@ logging:
 | QUICK_START_v16.md | 详细使用指南 | 新用户 |
 | OPTIMIZATION_SUMMARY_v16.md | 优化实现细节 | 代码审核者 |
 | config.yaml | 参数配置 | 需要调参 |
+| analyze_runs.py | 多运行结果比较工具 | 模型评估 |
 
 ## 🔧 技术栈
 
