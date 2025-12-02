@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  download_data:
+  download_and_predict:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # 允许创建/删除 releases 和 tags
@@ -32,7 +32,7 @@ jobs:
       - name: 📦 Install dependencies
         run: pip install -r requirements.txt
 
-      - name: 🚀 Run Download Script
+      - name: 🚀 Run Download & Predict Script
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
         run: python 下载数据.py
@@ -43,6 +43,13 @@ jobs:
           name: daily-data
           path: data/
           retention-days: 1
+
+      - name: 📊 Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy-report
+          path: reports/
+          retention-days: 7
 
       - name: 📦 Compress parquet files
         run: tar -czf parquet-data.tar.gz data/*.parquet
@@ -69,37 +76,3 @@ jobs:
           body: "Updated on ${{ steps.date.outputs.today }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  predict:
-    needs: download_data
-    runs-on: ubuntu-latest
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: 📦 Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: 📥 Download Data Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: daily-data
-          path: data/
-
-      - name: 🚀 Run Prediction Script
-        env:
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-        run: python 预测.py
-
-      - name: 📊 Upload Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: strategy-report
-          path: reports/
