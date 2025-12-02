@@ -1,6 +1,8 @@
 pandas
+pandas_ta
 xcsc_tushare
 catboost
 requests
 pyarrow
 fastparquet
+tabulate
