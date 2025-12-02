@@ -190,33 +190,32 @@ def analyze_and_update_config(run_dir, cycle):
         generate_ai_report(cycle, run_dir, False, error_msg=msg)
         return False
 
-def run_training_cycle(cycle_num):
-    logger.info(f"=== Starting Cycle {cycle_num} ===")
+def run_training_cycle(cycle_num, resume=False):
+    logger.info(f"=== Starting Cycle {cycle_num} (Resume={resume}) ===")
     
-    # Run the training script
-    # We use pexpect or just subprocess. 
-    # Since the script asks for input (n/c), we need to handle that.
-    # But wait, we can modify the script to accept args or just pipe input.
+    # v28: 使用命令行参数避免交互式输入卡死
+    # --mode n: 新训练
+    # --mode c: 继续训练
+    # --use-cache y: 使用缓存 (假设特征工程未变)
     
-    cmd = f"export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && {sys.executable} {TRAINING_SCRIPT}"
+    mode_arg = 'c' if resume else 'n'
+    # 使用 runpy 方式运行，以规避在部分环境下对非 ASCII 文件名的编码问题
+    # 通过 ASCII 命名的启动器避免终端/locale 对中文文件名的编码问题
+    launcher = "training/run_training.py"
+    cmd = f"export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && {sys.executable} {launcher} --mode {mode_arg} --use-cache y"
     
-    # We pipe 'n\n' to select 'New training' mode automatically
+    logger.info(f"Executing: {cmd}")
+    
+    # 不再需要 stdin pipe，因为使用了命令行参数
     process = subprocess.Popen(
         cmd, 
         shell=True, 
-        stdin=subprocess.PIPE,
         stdout=sys.stdout, 
         stderr=sys.stderr,
         text=True
     )
     
-    # Send 'n' for new training, then 'y' for cache if asked (though we might want 'n' if we changed features)
-    # For this recursive loop, we assume features are stable, so 'y' for cache is faster.
-    # Input sequence: 'n' (New run) -> 'y' (Use cache)
-    try:
-        process.communicate(input="n\ny\n")
-    except Exception as e:
-        logger.error(f"Training process failed: {e}")
+    process.wait()
     
     if process.returncode != 0:
         logger.error("Training script exited with error.")
@@ -225,15 +224,29 @@ def run_training_cycle(cycle_num):
     return True
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--resume', action='store_true', help='Resume the latest training run for the first cycle')
+    args = parser.parse_args()
+
     cycle = 1
+    first_run = True
+    
     while True:
         logger.info(f"Initiating Recursive Optimization Loop: Cycle {cycle}")
         
+        # Determine if we should resume
+        # Only resume on the very first cycle if the flag is set
+        should_resume = args.resume and first_run
+        
         # 1. Run Training
-        success = run_training_cycle(cycle)
+        success = run_training_cycle(cycle, resume=should_resume)
         if not success:
             logger.error("Training failed. Aborting loop.")
             break
+        
+        # After first run, disable resume flag so subsequent loops start new runs
+        first_run = False
             
         # 2. Get Results
         latest_run = get_latest_run_dir()

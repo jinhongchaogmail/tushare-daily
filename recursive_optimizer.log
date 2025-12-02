@@ -137,3 +137,267 @@ Traceback (most recent call last):
     raise optuna.TrialPruned()
 optuna.exceptions.TrialPruned
 [I 2025-12-02 19:52:14,179] Trial 29 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9203438735088829, 'iterations': 1762, 'learning_rate': 0.06093048946180408, 'depth': 10, 'subsample': 0.8183781778053555, 'l2_leaf_reg': 0.012598882215158461, 'min_data_in_leaf': 29}. Best is trial 28 with value: 0.464821183288043.
+[I 2025-12-02 19:58:41,161] Trial 30 finished with value: 0.46469755761660053 and parameters: {'vol_multiplier': 0.9502218417278303, 'iterations': 1709, 'learning_rate': 0.06264364134238978, 'depth': 10, 'subsample': 0.7625083402559844, 'l2_leaf_reg': 1.5560182761216486, 'min_data_in_leaf': 17}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:06:11,484 - ERROR - 试验 31: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:06:11,530] Trial 31 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9486625259800142, 'iterations': 1702, 'learning_rate': 0.06212798121376431, 'depth': 10, 'subsample': 0.7604531703351288, 'l2_leaf_reg': 1.5630995630661475, 'min_data_in_leaf': 20}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:10:10,056 - ERROR - 试验 32: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:10:10,082] Trial 32 finished with value: 0.0 and parameters: {'vol_multiplier': 0.7544142764965308, 'iterations': 1789, 'learning_rate': 0.06266249509630112, 'depth': 10, 'subsample': 0.7304011500283093, 'l2_leaf_reg': 0.09733442053196001, 'min_data_in_leaf': 24}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:10:24,256 - ERROR - 试验 33: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:10:24,282] Trial 33 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9078392082277987, 'iterations': 1696, 'learning_rate': 0.061017285465429914, 'depth': 10, 'subsample': 0.8621820525240315, 'l2_leaf_reg': 7.169589474738444e-07, 'min_data_in_leaf': 10}. Best is trial 28 with value: 0.464821183288043.
+[I 2025-12-02 20:16:16,018] Trial 34 finished with value: 0.4636559688083365 and parameters: {'vol_multiplier': 0.9536640352551979, 'iterations': 1619, 'learning_rate': 0.060215680420920334, 'depth': 10, 'subsample': 0.8073000199889669, 'l2_leaf_reg': 0.20457510943576931, 'min_data_in_leaf': 32}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:24:59,181 - ERROR - 试验 35: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:24:59,221] Trial 35 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9401713801899996, 'iterations': 1719, 'learning_rate': 0.06504964361753522, 'depth': 11, 'subsample': 0.895849144336744, 'l2_leaf_reg': 2.00839841272367, 'min_data_in_leaf': 17}. Best is trial 28 with value: 0.464821183288043.
+[I 2025-12-02 20:31:13,743] Trial 36 finished with value: 0.46406302291921786 and parameters: {'vol_multiplier': 0.9737791469623097, 'iterations': 1764, 'learning_rate': 0.06992266791950531, 'depth': 10, 'subsample': 0.7754862653171154, 'l2_leaf_reg': 0.976854926085513, 'min_data_in_leaf': 25}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:35:12,998 - ERROR - 试验 37: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:35:13,023] Trial 37 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8843988276536873, 'iterations': 1799, 'learning_rate': 0.0698434069286613, 'depth': 11, 'subsample': 0.8414282959217436, 'l2_leaf_reg': 0.011085256906518187, 'min_data_in_leaf': 16}. Best is trial 28 with value: 0.464821183288043.
+✓ 正在加载缓存...
+✓ 从缓存加载数据完成。形状: (2701135, 73)
+
+--- 步骤 5: 处理后的总数据表已准备就绪 ---
+最终数据形状: (2701135, 73)
+
+*** 数据准备完成。耗时: 2.23 秒。 ***
+
+
+--- 启动 Optuna 寻优单元 (CatBoost CPU/GPU 自动适配版) ---
+Optuna 寻优：文件将保存到: /home/jin/work/optuna_results/run_20251202_174653
+使用 64 个数值特征进行训练。
+开始 Optuna 寻优 (目标 200 次)...
+
+============================================================
+【试验 1】 开始优化试验
+============================================================
+[✓ 试验 1 完成] F1=0.4679 | 平衡度=0.9889 | 得分=0.4628 | 耗时 311.1s
+
+============================================================
+【试验 2】 开始优化试验
+============================================================
+[✓ 试验 2 完成] F1=0.3602 | 平衡度=0.8853 | 得分=0.3188 | 耗时 28.9s
+
+============================================================
+【试验 3】 开始优化试验
+============================================================
+
+============================================================
+【试验 4】 开始优化试验
+============================================================
+
+============================================================
+【试验 5】 开始优化试验
+============================================================
+
+============================================================
+【试验 6】 开始优化试验
+============================================================
+[✓ 试验 6 完成] F1=0.4679 | 平衡度=0.9892 | 得分=0.4628 | 耗时 238.1s
+
+============================================================
+【试验 7】 开始优化试验
+============================================================
+
+============================================================
+【试验 8】 开始优化试验
+============================================================
+
+============================================================
+【试验 9】 开始优化试验
+============================================================
+
+============================================================
+【试验 10】 开始优化试验
+============================================================
+
+============================================================
+【试验 11】 开始优化试验
+============================================================
+[✓ 试验 11 完成] F1=0.4712 | 平衡度=0.9813 | 得分=0.4623 | 耗时 224.4s
+
+============================================================
+【试验 12】 开始优化试验
+============================================================
+
+============================================================
+【试验 13】 开始优化试验
+============================================================
+[✓ 试验 13 完成] F1=0.4684 | 平衡度=0.9878 | 得分=0.4627 | 耗时 238.5s
+
+============================================================
+【试验 14】 开始优化试验
+============================================================
+
+============================================================
+【试验 15】 开始优化试验
+============================================================
+[✓ 试验 15 完成] F1=0.4717 | 平衡度=0.9824 | 得分=0.4634 | 耗时 351.6s
+
+============================================================
+【试验 16】 开始优化试验
+============================================================
+[✓ 试验 16 完成] F1=0.4725 | 平衡度=0.9811 | 得分=0.4636 | 耗时 344.6s
+
+============================================================
+【试验 17】 开始优化试验
+============================================================
+[✓ 试验 17 完成] F1=0.4726 | 平衡度=0.9809 | 得分=0.4636 | 耗时 359.6s
+
+============================================================
+【试验 18】 开始优化试验
+============================================================
+[✓ 试验 18 完成] F1=0.4708 | 平衡度=0.9839 | 得分=0.4632 | 耗时 467.1s
+
+============================================================
+【试验 19】 开始优化试验
+============================================================
+
+============================================================
+【试验 20】 开始优化试验
+============================================================
+[✓ 试验 20 完成] F1=0.4706 | 平衡度=0.9843 | 得分=0.4632 | 耗时 335.9s
+
+============================================================
+【试验 21】 开始优化试验
+============================================================
+[✓ 试验 21 完成] F1=0.4704 | 平衡度=0.9842 | 得分=0.4630 | 耗时 481.9s
+
+============================================================
+【试验 22】 开始优化试验
+============================================================
+[✓ 试验 22 完成] F1=0.4720 | 平衡度=0.9816 | 得分=0.4633 | 耗时 343.3s
+
+============================================================
+【试验 23】 开始优化试验
+============================================================
+[✓ 试验 23 完成] F1=0.4720 | 平衡度=0.9832 | 得分=0.4641 | 耗时 372.7s
+
+============================================================
+【试验 24】 开始优化试验
+============================================================
+[✓ 试验 24 完成] F1=0.4711 | 平衡度=0.9848 | 得分=0.4639 | 耗时 362.5s
+
+============================================================
+【试验 25】 开始优化试验
+============================================================
+
+============================================================
+【试验 26】 开始优化试验
+============================================================
+
+============================================================
+【试验 27】 开始优化试验
+============================================================
+
+============================================================
+【试验 28】 开始优化试验
+============================================================
+
+============================================================
+【试验 29】 开始优化试验
+============================================================
+[✓ 试验 29 完成] F1=0.4716 | 平衡度=0.9856 | 得分=0.4648 | 耗时 407.5s
+
+============================================================
+【试验 30】 开始优化试验
+============================================================
+
+============================================================
+【试验 31】 开始优化试验
+============================================================
+[✓ 试验 31 完成] F1=0.4713 | 平衡度=0.9860 | 得分=0.4647 | 耗时 386.9s
+
+============================================================
+【试验 32】 开始优化试验
+============================================================
+
+============================================================
+【试验 33】 开始优化试验
+============================================================
+
+============================================================
+【试验 34】 开始优化试验
+============================================================
+
+============================================================
+【试验 35】 开始优化试验
+============================================================
+[✓ 试验 35 完成] F1=0.4704 | 平衡度=0.9856 | 得分=0.4637 | 耗时 351.7s
+
+============================================================
+【试验 36】 开始优化试验
+============================================================
+
+============================================================
+【试验 37】 开始优化试验
+============================================================
+[✓ 试验 37 完成] F1=0.4719 | 平衡度=0.9835 | 得分=0.4641 | 耗时 374.5s
+
+============================================================
+【试验 38】 开始优化试验
+============================================================
+
+============================================================
+【试验 39】 开始优化试验
+============================================================
+[I 2025-12-02 20:39:56,216] Trial 38 finished with value: 0.46250717829582316 and parameters: {'vol_multiplier': 0.9791377458549764, 'iterations': 1753, 'learning_rate': 0.07460233579132967, 'depth': 9, 'subsample': 0.7921613232556903, 'l2_leaf_reg': 0.14006467811279888, 'min_data_in_leaf': 23}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:42:44,003 - ERROR - 试验 39: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    if trial.should_prune():
+        ^^^^^^^^^^^^^^^^^^^^^
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:42:44,032] Trial 39 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9285904195401108, 'iterations': 1777, 'learning_rate': 0.07856624855353571, 'depth': 10, 'subsample': 0.767025961098014, 'l2_leaf_reg': 0.035953977439168845, 'min_data_in_leaf': 43}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 20:46:31,657 - ERROR - 试验 40: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    if trial.should_prune():
+        ^^^^^^^^^^^^^^^^^^^^^
+optuna.exceptions.TrialPruned
+[I 2025-12-02 20:46:31,690] Trial 40 finished with value: 0.0 and parameters: {'vol_multiplier': 0.91482688442713, 'iterations': 1747, 'learning_rate': 0.07298889662091125, 'depth': 10, 'subsample': 0.8740339291507603, 'l2_leaf_reg': 3.5020156434418004, 'min_data_in_leaf': 52}. Best is trial 28 with value: 0.464821183288043.
+[I 2025-12-02 20:52:57,735] Trial 41 finished with value: 0.46358694800111244 and parameters: {'vol_multiplier': 0.9601087138852187, 'iterations': 1635, 'learning_rate': 0.06653017090103909, 'depth': 10, 'subsample': 0.7382953989705779, 'l2_leaf_reg': 0.4651613829737422, 'min_data_in_leaf': 27}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 21:58:09,371 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 21:58:09,371 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 (Resume=True) ===
+2025-12-02 21:58:09,371 - [RecursiveOptimizer] - INFO - Executing: export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && /home/jin/work/.venv/bin/python training/模型训练.py --mode c --use-cache y
+2025-12-02 21:58:09,404 - [RecursiveOptimizer] - ERROR - Training script exited with error.
+2025-12-02 21:58:09,404 - [RecursiveOptimizer] - ERROR - Training failed. Aborting loop.
+2025-12-02 21:59:40,168 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 21:59:40,168 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 (Resume=True) ===
+2025-12-02 21:59:40,168 - [RecursiveOptimizer] - INFO - Executing: export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && /home/jin/work/.venv/bin/python -c "import sys,runpy; sys.argv=['training/模型训练.py', '--mode', 'c', '--use-cache', 'y']; runpy.run_path('training/模型训练.py', run_name='__main__')"
+2025-12-02 21:59:40,217 - [RecursiveOptimizer] - ERROR - Training script exited with error.
+2025-12-02 21:59:40,217 - [RecursiveOptimizer] - ERROR - Training failed. Aborting loop.
+2025-12-02 22:00:07,367 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 22:00:07,367 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 (Resume=True) ===
+2025-12-02 22:00:07,367 - [RecursiveOptimizer] - INFO - Executing: export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && /home/jin/work/.venv/bin/python -c "import sys,runpy; sys.argv=['training/模型训练.py', '--mode', 'c', '--use-cache', 'y']; runpy.run_path('training/模型训练.py', run_name='__main__')"
+2025-12-02 22:00:07,415 - [RecursiveOptimizer] - ERROR - Training script exited with error.
+2025-12-02 22:00:07,415 - [RecursiveOptimizer] - ERROR - Training failed. Aborting loop.
+2025-12-02 22:01:32,481 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 22:01:32,481 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 (Resume=True) ===
+2025-12-02 22:01:32,482 - [RecursiveOptimizer] - INFO - Executing: export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && /home/jin/work/.venv/bin/python training/run_training.py --mode c --use-cache y
+2025-12-02 22:01:32,531 - [RecursiveOptimizer] - ERROR - Training script exited with error.
+2025-12-02 22:01:32,531 - [RecursiveOptimizer] - ERROR - Training failed. Aborting loop.
+2025-12-02 22:02:34,167 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 22:02:34,167 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 (Resume=True) ===
+2025-12-02 22:02:34,168 - [RecursiveOptimizer] - INFO - Executing: export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && /home/jin/work/.venv/bin/python training/run_training.py --mode c --use-cache y
+2025-12-02 22:02:34,198 - [RecursiveOptimizer] - ERROR - Training script exited with error.
+2025-12-02 22:02:34,198 - [RecursiveOptimizer] - ERROR - Training failed. Aborting loop.
+2025-12-02 22:04:20,743 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 22:04:20,744 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 (Resume=True) ===
+2025-12-02 22:04:20,744 - [RecursiveOptimizer] - INFO - Executing: export PYTHONPATH=$PYTHONPATH:$(pwd)/shared && /home/jin/work/.venv/bin/python training/run_training.py --mode c --use-cache y
