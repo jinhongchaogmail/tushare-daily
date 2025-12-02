@@ -15,6 +15,8 @@ concurrency:
 jobs:
   download_data:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 允许创建/删除 releases 和 tags
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v4
