@@ -240,6 +240,9 @@ def main():
 
     print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理...", flush=True)
     
+    # DEBUG: 仅处理2条以快速验证流程
+    ts_codes = ts_codes.head(2)
+    
     total = len(ts_codes)
     skipped = []
     
