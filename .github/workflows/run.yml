@@ -49,13 +49,21 @@ jobs:
         id: date
         run: echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Release to GitHub
+      - name: 🗑️ Delete Old Release
+        uses: dev-drprasad/delete-tag-and-release@v1.1
+        with:
+          tag_name: latest
+          delete_release: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🚀 Release to GitHub (Rolling)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.date.outputs.today }}
-          name: Daily Data ${{ steps.date.outputs.today }}
+          tag_name: latest
+          name: Daily Data (Latest)
           files: parquet-data.tar.gz
           make_latest: true
+          body: "Updated on ${{ steps.date.outputs.today }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
