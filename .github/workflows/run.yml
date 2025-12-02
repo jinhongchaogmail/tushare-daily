@@ -53,6 +53,7 @@ jobs:
 
       - name: 🗑️ Delete Old Release
         uses: dev-drprasad/delete-tag-and-release@v1.1
+        continue-on-error: true  # 如果 tag 不存在，允许继续执行
         with:
           tag_name: latest
           delete_release: true
