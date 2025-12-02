@@ -1,8 +1,9 @@
 pandas
-pandas_ta
+pandas-ta
 xcsc_tushare
 catboost
 requests
 pyarrow
 fastparquet
 tabulate
+numpy
