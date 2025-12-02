@@ -42,16 +42,16 @@ optuna:
   pruner_startup: 2  # 优化：从5减少到2
   # n_warmup_steps 硬编码为 1 (不从 Config 读取)
   
-  # 参数搜索空间 (v23 更新)
+  # 参数搜索空间 (v29: Evolution based on Trial 37)
   search_space:
     # threshold: [0.001, 0.8]  # v23: 已废弃，改用动态波动率乘数
-    vol_multiplier: [0.5, 1.5]  # v23: 波动率乘数范围
+    vol_multiplier: [0.75, 1.0]  # Best: 0.86
     offset: [0.0, 0.0]  # v23: 固定为0
-    iterations: [100, 1000]
-    learning_rate: [1e-4, 1.0]
-    depth: [8, 14]
-    subsample: [0.5, 1.0]
-    l2_leaf_reg: [0.0, 5.0]
+    iterations: [1400, 1800]  # Best: 1615
+    learning_rate: [0.06, 0.10]  # Best: 0.084
+    depth: [9, 11] # Best: 10. Zoomed in.
+    subsample: [0.55, 0.75] # Best: 0.61
+    l2_leaf_reg: [1.5, 3.0] # Best: 2.18
     colsample_bylevel: [0.5, 1.0]  # CPU only
   study_name: catboost_stock_3class_v16
 

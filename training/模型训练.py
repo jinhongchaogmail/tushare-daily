@@ -633,12 +633,17 @@ def post_process_data(processed_dfs):
     # 3. 计算超额收益 (Alpha)
     combined_df['excess_return'] = combined_df['close_pct_change'] - combined_df['market_return']
     
-    # 4. 填充可能的 NaN (比如某天只有一只股票交易，或者数据缺失)
+    # 4. 计算当日涨幅排名 (0~1) - (v27 新增: 截面特征)
+    # 这能剔除大盘的影响，还原个股真实的强弱
+    combined_df['rank_pct_chg'] = combined_df.groupby(combined_df.index.name)['close_pct_change'].rank(pct=True).astype('float32')
+    
+    # 5. 填充可能的 NaN (比如某天只有一只股票交易，或者数据缺失)
     combined_df['excess_return'] = combined_df['excess_return'].fillna(0.0).astype('float32')
+    combined_df['rank_pct_chg'] = combined_df['rank_pct_chg'].fillna(0.5).astype('float32') # 默认排名居中
     
     # 移除中间变量 market_return 以节省内存 (如果不需要作为特征)
     combined_df.drop(columns=['market_return'], inplace=True)
-    print(f"[进度] ✓ 超额收益 (excess_return) 计算完成。")
+    print(f"[进度] ✓ 超额收益 (excess_return) 和 涨幅排名 (rank_pct_chg) 计算完成。")
     # --- (新增结束) ---
 
     return combined_df
@@ -768,7 +773,14 @@ def run_optuna_study(combined_df, base_save_path):
         'atr_volume_cross': 'ATR-成交量交叉',
         'rsi_stoch_cross': 'RSI-KD交叉',
         'days_since_low_20': '距近期低点天数',
-        'consecutive_up_days': '连涨天数'
+        'consecutive_up_days': '连涨天数',
+        'rank_pct_chg': '当日涨幅排名',
+        'volatility_5d': '波动率(5日)',
+        'volatility_10d': '波动率(10日)',
+        'volatility_60d': '波动率(60日)',
+        'rsi_vol_20': 'RSI波动率',
+        'bias_vol_20': '乖离率波动率',
+        'macd_h_vol_20': 'MACD柱波动率'
     }
 
     feature_columns = get_feature_columns(train_data_raw)
@@ -813,6 +825,11 @@ def run_optuna_study(combined_df, base_save_path):
 
     # 7. CatBoost 参数函数 (CPU/GPU 自动适配) - v18 优化搜索空间
     def build_cb_params(trial):
+        # 从 Config 读取搜索空间
+        depth_range = CONFIG.get('optuna.search_space.depth', [6, 10])
+        iter_range = CONFIG.get('optuna.search_space.iterations', [600, 1000])
+        lr_range = CONFIG.get('optuna.search_space.learning_rate', [0.03, 0.2])
+        
         params = {
             'loss_function': 'MultiClass',
             'eval_metric': 'MultiClass',
@@ -820,9 +837,9 @@ def run_optuna_study(combined_df, base_save_path):
             'logging_level': 'Silent',
             'random_seed': 42,
             # v18: 优化搜索空间 (v17建议: 缩小范围)
-            'iterations': trial.suggest_int('iterations', 600, 1000),
-            'learning_rate': trial.suggest_float('learning_rate', 0.03, 0.2, log=True),
-            'depth': trial.suggest_int('depth', 6, 10),
+            'iterations': trial.suggest_int('iterations', iter_range[0], iter_range[1]),
+            'learning_rate': trial.suggest_float('learning_rate', lr_range[0], lr_range[1], log=True),
+            'depth': trial.suggest_int('depth', depth_range[0], depth_range[1]),
             'subsample': trial.suggest_float('subsample', 0.6, 0.9),
             'l2_leaf_reg': trial.suggest_float('l2_leaf_reg', 1e-8, 10.0, log=True),
             'bootstrap_type': 'Bernoulli',
@@ -833,7 +850,8 @@ def run_optuna_study(combined_df, base_save_path):
         if _GPU_AVAILABLE:
             params['task_type'] = 'GPU'
             params['devices'] = '0'
-            params['gpu_ram_part'] = 0.7  # 提高显存配额到 70%
+            # v27.1 修复: 恢复独占显存模式 (0.95)，因为已回退到串行训练
+            params['gpu_ram_part'] = 0.95
         else:
             params['task_type'] = 'CPU'
             params['colsample_bylevel'] = trial.suggest_float('colsample_bylevel', 0.5, 1.0)
@@ -1115,6 +1133,8 @@ def run_optuna_study(combined_df, base_save_path):
         print(f"加载 Study 成功。已完成 {completed_trials} / {N_TRIALS} 次试验。")
 
     cpu_count = os.cpu_count() or 1
+    # v27.1 修复: GPU 模式下强制串行 (n_jobs=1)，避免 "State == nullptr" 和 OOM 错误
+    # CatBoost 对多进程 GPU 上下文支持不稳定，串行是最安全的方案。
     n_jobs_optuna = 1 if _GPU_AVAILABLE else min(CONFIG.get('optuna.n_jobs', 2), cpu_count)
 
 
@@ -1305,9 +1325,10 @@ def run_optuna_study(combined_df, base_save_path):
                         if _GPU_AVAILABLE:
                             cb_params_post['task_type'] = 'GPU'
                             cb_params_post['devices'] = '0'
-                            cb_params_post['gpu_ram_part'] = 0.3
+                            # v27.1: 提高后验评估显存配额
+                            cb_params_post['gpu_ram_part'] = 0.95
                             cb_params_post.pop('colsample_bylevel', None)
-                            if SHOW_VERBOSE_OUTPUT: print("后验评估：使用 GPU (gpu_ram_part=0.3)。")
+                            if SHOW_VERBOSE_OUTPUT: print("后验评估：使用 GPU (gpu_ram_part=0.95)。")
                         else:
                             cb_params_post['task_type'] = 'CPU'
                             if SHOW_VERBOSE_OUTPUT: print("后验评估：使用 CPU。")

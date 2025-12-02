@@ -13,3 +13,4 @@ optuna_env/
 training/temp_repo/
 secrets.sh
 reports/
+.venv/

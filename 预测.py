@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import requests
-import tushare as ts
+import xcsc_tushare as ts
 import catboost as cb
 import json
 import sys
@@ -238,7 +238,8 @@ def main():
     
     # 1. 初始化模型
     if not init_model():
-        print("模型初始化失败，将只进行数据下载。")
+        print("模型初始化失败，无法进行预测。")
+        return
     
     # 2. 获取股票列表
     ts_codes = list_main_board_cs()
@@ -248,53 +249,53 @@ def main():
     count = 0
 
     for x in ts_codes["ts_code"]:
-        # if count >= 50:  # Limit to 50 stocks for testing
-        #     print("Testing limit reached (50 stocks). Stopping.")
-        #     break
-
         i = None
-        retry = 0
-        max_retry = 3
-
-        print(f"正在获取 {x}...", end='\r') # Show progress
-        while i is None and retry < max_retry:
+        
+        # 优先尝试从本地加载数据 (Artifacts)
+        local_path = os.path.join(OUT_DIR, f"{x}.parquet")
+        if os.path.exists(local_path):
             try:
-                i = get_hist(x)
-                if i is None:
+                df = pd.read_parquet(local_path)
+                # 确保 trade_date 是 datetime 类型
+                if 'trade_date' in df.columns:
+                    df['trade_date'] = pd.to_datetime(df['trade_date'])
+                i = (x, df)
+            except Exception as e:
+                print(f"读取本地文件 {local_path} 失败: {e}")
+                i = None
+        
+        # 如果本地没有，则尝试下载 (Fallback)
+        if i is None:
+            retry = 0
+            max_retry = 3
+            while i is None and retry < max_retry:
+                try:
+                    i = get_hist(x)
+                    if i is None:
+                        skipped.append(x)
+                        break
+                except requests.exceptions.ConnectionError:
+                    print(f"{x} 网络错误，3秒后重试")
+                    time.sleep(3)
+                    retry += 1
+                    continue
+                except Exception as e:
+                    print(f"{x} 出错: {e}，跳过")
                     skipped.append(x)
                     break
-            except requests.exceptions.ConnectionError:
-                print(f"{x} 网络错误，3秒后重试")
-                time.sleep(3)
-                retry += 1
-                continue
-            except Exception as e:
-                print(f"{x} 出错: {e}，跳过")
-                skipped.append(x)
-                break
 
         if i is not None:
             ts_code, df = i
             
-            # --- 流式处理核心 ---
-            # 1. 先进行预测 (使用原始数据或清洗后的数据)
-            # 注意：process_stock_data 内部会调用 feature_engineering
-            # 我们传入原始 df 的副本，以免影响后续存储逻辑
+            # --- 预测核心 ---
             if model is not None:
                 process_stock_data(ts_code, df.copy())
-            
-            # 2. 数据存储逻辑 (保持原有)
-            df = add_features_simple(df)
-            df = downcast(df)
-            out_file = os.path.join(OUT_DIR, f"{ts_code}.parquet")
-            df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
             
             count += 1
             if count % 100 == 0:
                 print(f"已处理 {count} 只股票...")
 
     if skipped:
-        pd.DataFrame(skipped, columns=["ts_code"]).to_csv("skipped.csv", index=False)
         print(f"跳过 {len(skipped)} 个股票")
 
     # 3. 生成报告

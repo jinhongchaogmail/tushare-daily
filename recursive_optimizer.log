@@ -1,0 +1,107 @@
+2025-12-02 17:46:50,549 - [RecursiveOptimizer] - INFO - Initiating Recursive Optimization Loop: Cycle 1
+2025-12-02 17:46:50,549 - [RecursiveOptimizer] - INFO - === Starting Cycle 1 ===
+--- 引导程序: 检查并安装依赖 (v12.1 - Colab 优化模式) ---
+检测到环境: LOCAL
+使用虚拟环境 Python 作为 pip: /home/jin/.venv/bin/python
+
+【步骤 1/3】: 检查所有必需的包...
+
+【步骤 2/3】: 所有包均已存在。
+【步骤 3/3】: 跳过安装。
+
+【信息】:所有依赖已成功加载。
+✓ 已选择中文字体: AR PL UMing CN
+✓ 配置文件加载成功: /home/jin/work/training/config.yaml
+
+--- 步骤 1: 自动环境检测与路径配置 ---
+检测到环境: LOCAL
+BASE_DIR: /home/jin/work
+ARCHIVE_PATH: /home/jin/work/parquet-data.tar.gz
+GDRIVE_BASE_PATH: /home/jin/work
+DATA_DIR: /home/jin/work/data/
+
+--- 训练模式配置 (v20) ---
+结果存储根目录: /home/jin/work/optuna_results
+请选择模式:
+  [n] 新训练 (New)      - 创建带时间戳的新目录 (例如 run_2023...)
+  [c] 继续训练 (Continue) - 选择已有目录继续优化
+请输入模式 (n/c) [默认 n]: >> 已创建新训练目录: run_20251202_174653
+本次运行结果将保存至: /home/jin/work/optuna_results/run_20251202_174653
+检查缓存文件: /home/jin/work/feature_cache_10000_e3da0b26.parquet
+
+[!] 发现已存在的特征缓存: feature_cache_10000_e3da0b26.parquet
+    如果你修改了特征工程代码(apply_technical_indicators)，请选择 'n' 以重新计算。
+    是否加载此缓存? [y/n] (默认 y): [I 2025-12-02 17:46:57,655] A new study created in RDB with name: catboost_stock_3class_v16
+[I 2025-12-02 17:52:08,876] Trial 0 finished with value: 0.46275724949277497 and parameters: {'vol_multiplier': 0.9238272093836737, 'iterations': 1512, 'learning_rate': 0.07722472905585337, 'depth': 10, 'subsample': 0.6486201469621393, 'l2_leaf_reg': 0.040977137578110695, 'min_data_in_leaf': 78}. Best is trial 0 with value: 0.46275724949277497.
+[I 2025-12-02 17:53:24,796] Trial 1 finished with value: 0.3188348589687092 and parameters: {'vol_multiplier': 0.7721399083570273, 'iterations': 1615, 'learning_rate': 0.07732268641367387, 'depth': 11, 'subsample': 0.6543839970757751, 'l2_leaf_reg': 5.307773121107929e-08, 'min_data_in_leaf': 26}. Best is trial 0 with value: 0.46275724949277497.
+2025-12-02 17:53:38,499 - ERROR - 试验 2: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:53:38,528] Trial 2 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8992699871919125, 'iterations': 1794, 'learning_rate': 0.06176980506448357, 'depth': 10, 'subsample': 0.6299815141116981, 'l2_leaf_reg': 0.0002912404937643964, 'min_data_in_leaf': 91}. Best is trial 0 with value: 0.46275724949277497.
+2025-12-02 17:53:53,610 - ERROR - 试验 3: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:53:53,642] Trial 3 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8595578140236733, 'iterations': 1619, 'learning_rate': 0.08686839139916118, 'depth': 10, 'subsample': 0.6521358415104076, 'l2_leaf_reg': 0.0010854680204598654, 'min_data_in_leaf': 19}. Best is trial 0 with value: 0.46275724949277497.
+2025-12-02 17:54:25,234 - ERROR - 试验 4: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:54:25,284] Trial 4 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9490768350390928, 'iterations': 1746, 'learning_rate': 0.07229784199501077, 'depth': 11, 'subsample': 0.8883867250512023, 'l2_leaf_reg': 1.2488299543318933e-08, 'min_data_in_leaf': 47}. Best is trial 0 with value: 0.46275724949277497.
+[I 2025-12-02 17:58:23,444] Trial 5 finished with value: 0.4628148522012341 and parameters: {'vol_multiplier': 0.9219820992117256, 'iterations': 1636, 'learning_rate': 0.08113291631197306, 'depth': 9, 'subsample': 0.6010223283984873, 'l2_leaf_reg': 0.013462841098395342, 'min_data_in_leaf': 67}. Best is trial 5 with value: 0.4628148522012341.
+2025-12-02 17:58:40,644 - ERROR - 试验 6: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:58:40,668] Trial 6 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8677031084325755, 'iterations': 1570, 'learning_rate': 0.0741925866538332, 'depth': 11, 'subsample': 0.646819665442339, 'l2_leaf_reg': 0.0003938665920926657, 'min_data_in_leaf': 19}. Best is trial 5 with value: 0.4628148522012341.
+2025-12-02 17:58:52,356 - ERROR - 试验 7: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:58:52,380] Trial 7 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8611000183817876, 'iterations': 1683, 'learning_rate': 0.0888543395260754, 'depth': 9, 'subsample': 0.6584792412966045, 'l2_leaf_reg': 0.00017705043497719044, 'min_data_in_leaf': 53}. Best is trial 5 with value: 0.4628148522012341.
+2025-12-02 17:59:05,559 - ERROR - 试验 8: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:59:05,582] Trial 8 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8837942569436446, 'iterations': 1444, 'learning_rate': 0.0658788461920254, 'depth': 10, 'subsample': 0.6219004785025051, 'l2_leaf_reg': 1.827831039825988e-05, 'min_data_in_leaf': 59}. Best is trial 5 with value: 0.4628148522012341.
+2025-12-02 17:59:19,186 - ERROR - 试验 9: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 17:59:19,208] Trial 9 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8645214511464092, 'iterations': 1726, 'learning_rate': 0.07125191251202292, 'depth': 10, 'subsample': 0.850000980858364, 'l2_leaf_reg': 6.849194673116814e-05, 'min_data_in_leaf': 57}. Best is trial 5 with value: 0.4628148522012341.
+[I 2025-12-02 18:03:03,708] Trial 10 finished with value: 0.4623442647679327 and parameters: {'vol_multiplier': 0.996159830119754, 'iterations': 1419, 'learning_rate': 0.0962234784801139, 'depth': 9, 'subsample': 0.7474956834349039, 'l2_leaf_reg': 5.742346817019944, 'min_data_in_leaf': 98}. Best is trial 5 with value: 0.4628148522012341.
+2025-12-02 18:08:36,655 - ERROR - 试验 11: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 18:08:36,699] Trial 11 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9351861427151534, 'iterations': 1521, 'learning_rate': 0.08298438193737365, 'depth': 9, 'subsample': 0.7218237231556393, 'l2_leaf_reg': 0.08433162042074692, 'min_data_in_leaf': 78}. Best is trial 5 with value: 0.4628148522012341.
+[I 2025-12-02 18:12:35,237] Trial 12 finished with value: 0.4627414447228539 and parameters: {'vol_multiplier': 0.9335797634162507, 'iterations': 1503, 'learning_rate': 0.08080542742410271, 'depth': 9, 'subsample': 0.7038588991614845, 'l2_leaf_reg': 0.06706903525388816, 'min_data_in_leaf': 77}. Best is trial 5 with value: 0.4628148522012341.
+2025-12-02 18:16:34,890 - ERROR - 试验 13: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 18:16:34,925] Trial 13 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8126602816082629, 'iterations': 1548, 'learning_rate': 0.09429727169925908, 'depth': 9, 'subsample': 0.8006997317359156, 'l2_leaf_reg': 0.05862773806727472, 'min_data_in_leaf': 73}. Best is trial 5 with value: 0.4628148522012341.
+[I 2025-12-02 18:22:26,547] Trial 14 finished with value: 0.4634458886814046 and parameters: {'vol_multiplier': 0.9840728455699469, 'iterations': 1657, 'learning_rate': 0.06789538178265621, 'depth': 10, 'subsample': 0.6007595323850936, 'l2_leaf_reg': 3.298173652349788, 'min_data_in_leaf': 68}. Best is trial 14 with value: 0.4634458886814046.
+[I 2025-12-02 18:28:11,197] Trial 15 finished with value: 0.4635982906063994 and parameters: {'vol_multiplier': 0.9981432427917126, 'iterations': 1659, 'learning_rate': 0.06597609048773395, 'depth': 10, 'subsample': 0.6077789862855298, 'l2_leaf_reg': 9.019033449432978, 'min_data_in_leaf': 39}. Best is trial 15 with value: 0.4635982906063994.
+[I 2025-12-02 18:34:10,846] Trial 16 finished with value: 0.4635613188357222 and parameters: {'vol_multiplier': 0.9995332204287052, 'iterations': 1677, 'learning_rate': 0.0675061181664509, 'depth': 10, 'subsample': 0.7006134545411983, 'l2_leaf_reg': 2.5350433951762747, 'min_data_in_leaf': 38}. Best is trial 15 with value: 0.4635982906063994.
+[I 2025-12-02 18:41:57,983] Trial 17 finished with value: 0.4632049504691416 and parameters: {'vol_multiplier': 0.9698157036803036, 'iterations': 1700, 'learning_rate': 0.06412335957410992, 'depth': 11, 'subsample': 0.6893440857311267, 'l2_leaf_reg': 0.7605784261009817, 'min_data_in_leaf': 37}. Best is trial 15 with value: 0.4635982906063994.
+2025-12-02 18:42:11,591 - ERROR - 试验 18: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 18:42:11,613] Trial 18 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9999566553796397, 'iterations': 1776, 'learning_rate': 0.060446937686781055, 'depth': 10, 'subsample': 0.7870947067141334, 'l2_leaf_reg': 2.6530954124155988e-06, 'min_data_in_leaf': 37}. Best is trial 15 with value: 0.4635982906063994.
+[I 2025-12-02 18:47:47,534] Trial 19 finished with value: 0.46321294742697794 and parameters: {'vol_multiplier': 0.9654256023477077, 'iterations': 1673, 'learning_rate': 0.06812984613424959, 'depth': 10, 'subsample': 0.6843513757269758, 'l2_leaf_reg': 0.5811052223509434, 'min_data_in_leaf': 35}. Best is trial 15 with value: 0.4635982906063994.
+[I 2025-12-02 18:55:49,468] Trial 20 finished with value: 0.4629680886202292 and parameters: {'vol_multiplier': 0.9669592862509333, 'iterations': 1584, 'learning_rate': 0.0636338758302332, 'depth': 11, 'subsample': 0.7807118668256497, 'l2_leaf_reg': 0.6761865153782858, 'min_data_in_leaf': 12}. Best is trial 15 with value: 0.4635982906063994.
+[I 2025-12-02 19:03:24,852] Trial 21 finished with value: 0.46329857211981257 and parameters: {'vol_multiplier': 0.9928780614886353, 'iterations': 1651, 'learning_rate': 0.06887990736564534, 'depth': 10, 'subsample': 0.6070039447150853, 'l2_leaf_reg': 9.758493739074332, 'min_data_in_leaf': 45}. Best is trial 15 with value: 0.4635982906063994.
+[I 2025-12-02 19:09:37,608] Trial 22 finished with value: 0.4640748255047752 and parameters: {'vol_multiplier': 0.9764246830070772, 'iterations': 1720, 'learning_rate': 0.06734856937489202, 'depth': 10, 'subsample': 0.7350775529941019, 'l2_leaf_reg': 2.2234771945020784, 'min_data_in_leaf': 31}. Best is trial 22 with value: 0.4640748255047752.
