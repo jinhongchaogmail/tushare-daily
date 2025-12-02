@@ -7,12 +7,16 @@ import xcsc_tushare as ts
 from datetime import datetime
 
 # 添加 shared 到路径以便导入特征工程
-sys.path.append(os.path.join(os.getcwd(), 'shared'))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SHARED_DIR = os.path.join(SCRIPT_DIR, 'shared')
+if SHARED_DIR not in sys.path:
+    sys.path.insert(0, SHARED_DIR)
+
 try:
     from 特征工程 import apply_technical_indicators
     HAS_FEATURE_ENGINE = True
-except ImportError:
-    print("⚠️ 警告：无法导入特征工程，将跳过预测功能", flush=True)
+except ImportError as e:
+    print(f"⚠️ 警告：无法导入特征工程 ({e})，将跳过预测功能", flush=True)
     HAS_FEATURE_ENGINE = False
 
 # 尝试导入 CatBoost
