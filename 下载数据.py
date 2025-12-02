@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 import xcsc_tushare as ts
 from datetime import datetime
+import concurrent.futures
 
 TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")
 TS_SERVER = "http://116.128.206.39:7172"
@@ -20,13 +21,17 @@ hist_fields = "trade_date,open,high,low,close,change,pct_chg,volume,amount"
 
 def get_hist(ts_code: str):
     """获取历史数据，若数据不足则返回 None"""
-    df = pro.daily(ts_code=ts_code, start_date=START_DATE, end_date="", fields=hist_fields)
+    try:
+        df = pro.daily(ts_code=ts_code, start_date=START_DATE, end_date="", fields=hist_fields)
+    except Exception as e:
+        # print(f"{ts_code} API请求失败: {e}", flush=True)
+        raise e
+        
     df = df.iloc[::-1].reset_index(drop=True)
     if len(df) > 21:  # 至少一个月的数据
         df["trade_date"] = pd.to_datetime(df["trade_date"], format="%Y%m%d")
         return ts_code, df
     else:
-        print(f"{ts_code} 数据不足（仅 {len(df)} 行），跳过")
         return None
 
 def list_main_board_cs():
@@ -65,45 +70,67 @@ def downcast(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].astype("float32")
     return df
 
-def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
-    ts_codes = list_main_board_cs()
-    skipped = []
-
-    for x in ts_codes["ts_code"]:
-        i = None
-        retry = 0
-        max_retry = 3  # 网络错误时最多重试 3 次
-
-        while i is None and retry < max_retry:
-            try:
-                i = get_hist(x)
-                if i is None:  # 数据不足直接跳过，不再重试
-                    skipped.append(x)
-                    break
-            except requests.exceptions.ConnectionError:
-                print(f"{x} 网络错误，3秒后重试")
-                time.sleep(3)
-                retry += 1
-                continue
-            except Exception as e:
-                print(f"{x} 出错: {e}，跳过")
-                skipped.append(x)
-                break
-
-        if i is not None:
-            ts_code, df = i
+def process_one_stock(x):
+    """处理单个股票的函数，用于多线程"""
+    retry = 0
+    max_retry = 3
+    
+    while retry < max_retry:
+        try:
+            res = get_hist(x)
+            if res is None:
+                return None # 数据不足
+            
+            ts_code, df = res
             df = add_features(df)
             df = downcast(df)
             out_file = os.path.join(OUT_DIR, f"{ts_code}.parquet")
             df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
-            print(f"写入: {out_file}, 行数={len(df)}")
+            return f"OK: {ts_code} ({len(df)} rows)"
+            
+        except requests.exceptions.ConnectionError:
+            time.sleep(3)
+            retry += 1
+        except Exception as e:
+            return f"ERR: {x} {e}"
+            
+    return f"FAIL: {x} Max retries"
 
-    if skipped:
-        pd.DataFrame(skipped, columns=["ts_code"]).to_csv("skipped.csv", index=False)
-        print(f"跳过 {len(skipped)} 个股票，已写入 skipped.csv")
+def main():
+    print("🚀 启动下载脚本...", flush=True)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    
+    print("📋 正在获取股票列表...", flush=True)
+    try:
+        ts_codes = list_main_board_cs()
+    except Exception as e:
+        print(f"❌ 获取股票列表失败: {e}", flush=True)
+        return
 
-    print("RUN_DONE")
+    print(f"✅ 获取到 {len(ts_codes)} 只股票，开始并行下载...", flush=True)
+    
+    total = len(ts_codes)
+    done_count = 0
+    
+    # 使用 ThreadPoolExecutor 并行下载
+    # 注意：并发数不要太高，以免触发服务器限流
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(process_one_stock, row["ts_code"]): row["ts_code"] for _, row in ts_codes.iterrows()}
+        
+        for future in concurrent.futures.as_completed(futures):
+            done_count += 1
+            ts_code = futures[future]
+            try:
+                result = future.result()
+                if result and result.startswith("OK"):
+                    if done_count % 50 == 0: # 每50个打印一次进度，避免日志过多
+                        print(f"[{done_count}/{total}] {result}", flush=True)
+                elif result and (result.startswith("ERR") or result.startswith("FAIL")):
+                    print(f"[{done_count}/{total}] {result}", flush=True)
+            except Exception as exc:
+                print(f"[{done_count}/{total}] 💥 {ts_code} generated an exception: {exc}", flush=True)
+
+    print("🎉 RUN_DONE: 所有下载任务完成", flush=True)
 
 if __name__ == "__main__":
     main()
