@@ -1,6 +1,9 @@
 name: Daily Quant Pipeline
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "5 10 * * 1-5"  # UTC 10:05 = Beijing 18:05
   workflow_dispatch:
