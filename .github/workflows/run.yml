@@ -45,17 +45,19 @@ jobs:
       - name: 📦 Compress parquet files
         run: tar -czf parquet-data.tar.gz data/*.parquet
 
-      - name: ⚙️ Install rclone
-        run: curl https://rclone.org/install.sh | sudo bash
+      - name: 📅 Get Date
+        id: date
+        run: echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-      - name: 🔑 Restore rclone.conf
-        run: |
-          mkdir -p $HOME/.config/rclone
-          echo "${{ secrets.RCLONE_CONF_B64 }}" | base64 -d > $HOME/.config/rclone/rclone.conf
-
-      - name: ⬆️ Upload to Google Drive
-        run: |
-          rclone copy parquet-data.tar.gz "gdrive:Colab Notebooks" --progress -v
+      - name: 🚀 Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.date.outputs.today }}
+          name: Daily Data ${{ steps.date.outputs.today }}
+          files: parquet-data.tar.gz
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   predict:
     needs: download_data
