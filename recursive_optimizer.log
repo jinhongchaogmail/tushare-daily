@@ -105,3 +105,35 @@ optuna.exceptions.TrialPruned
 [I 2025-12-02 18:55:49,468] Trial 20 finished with value: 0.4629680886202292 and parameters: {'vol_multiplier': 0.9669592862509333, 'iterations': 1584, 'learning_rate': 0.0636338758302332, 'depth': 11, 'subsample': 0.7807118668256497, 'l2_leaf_reg': 0.6761865153782858, 'min_data_in_leaf': 12}. Best is trial 15 with value: 0.4635982906063994.
 [I 2025-12-02 19:03:24,852] Trial 21 finished with value: 0.46329857211981257 and parameters: {'vol_multiplier': 0.9928780614886353, 'iterations': 1651, 'learning_rate': 0.06887990736564534, 'depth': 10, 'subsample': 0.6070039447150853, 'l2_leaf_reg': 9.758493739074332, 'min_data_in_leaf': 45}. Best is trial 15 with value: 0.4635982906063994.
 [I 2025-12-02 19:09:37,608] Trial 22 finished with value: 0.4640748255047752 and parameters: {'vol_multiplier': 0.9764246830070772, 'iterations': 1720, 'learning_rate': 0.06734856937489202, 'depth': 10, 'subsample': 0.7350775529941019, 'l2_leaf_reg': 2.2234771945020784, 'min_data_in_leaf': 31}. Best is trial 22 with value: 0.4640748255047752.
+[I 2025-12-02 19:15:40,181] Trial 23 finished with value: 0.46392209064713397 and parameters: {'vol_multiplier': 0.9613692733842056, 'iterations': 1711, 'learning_rate': 0.06531908866026195, 'depth': 10, 'subsample': 0.7261752550559614, 'l2_leaf_reg': 1.0776005620636795, 'min_data_in_leaf': 32}. Best is trial 22 with value: 0.4640748255047752.
+2025-12-02 19:22:02,300 - ERROR - 试验 24: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 19:22:02,350] Trial 24 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9546237846967638, 'iterations': 1728, 'learning_rate': 0.06366536212974193, 'depth': 10, 'subsample': 0.7459275255750604, 'l2_leaf_reg': 0.004394351505465773, 'min_data_in_leaf': 30}. Best is trial 22 with value: 0.4640748255047752.
+2025-12-02 19:25:51,807 - ERROR - 试验 25: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 19:25:51,831] Trial 25 finished with value: 0.0 and parameters: {'vol_multiplier': 0.8330918434297274, 'iterations': 1758, 'learning_rate': 0.07136533246306824, 'depth': 10, 'subsample': 0.8301897422883217, 'l2_leaf_reg': 0.3474711629750746, 'min_data_in_leaf': 25}. Best is trial 22 with value: 0.4640748255047752.
+2025-12-02 19:29:32,952 - ERROR - 试验 26: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 19:29:32,980] Trial 26 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9046779565509234, 'iterations': 1706, 'learning_rate': 0.07461326489531415, 'depth': 10, 'subsample': 0.7259790850138594, 'l2_leaf_reg': 0.004735375695749516, 'min_data_in_leaf': 46}. Best is trial 22 with value: 0.4640748255047752.
+2025-12-02 19:38:24,511 - ERROR - 试验 27: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 19:38:24,539] Trial 27 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9786317190442171, 'iterations': 1734, 'learning_rate': 0.0653935732594047, 'depth': 11, 'subsample': 0.7686743469654379, 'l2_leaf_reg': 0.25540504113921325, 'min_data_in_leaf': 13}. Best is trial 22 with value: 0.4640748255047752.
+[I 2025-12-02 19:45:12,065] Trial 28 finished with value: 0.464821183288043 and parameters: {'vol_multiplier': 0.9539797473969331, 'iterations': 1701, 'learning_rate': 0.06139894436856565, 'depth': 10, 'subsample': 0.8222781151739932, 'l2_leaf_reg': 1.7770217194656925, 'min_data_in_leaf': 29}. Best is trial 28 with value: 0.464821183288043.
+2025-12-02 19:52:14,148 - ERROR - 试验 29: TimeSeriesSplit 或 CV 期间发生意外错误。
+Traceback (most recent call last):
+  File "/home/jin/work/training/模型训练.py", line 1040, in objective
+    raise optuna.TrialPruned()
+optuna.exceptions.TrialPruned
+[I 2025-12-02 19:52:14,179] Trial 29 finished with value: 0.0 and parameters: {'vol_multiplier': 0.9203438735088829, 'iterations': 1762, 'learning_rate': 0.06093048946180408, 'depth': 10, 'subsample': 0.8183781778053555, 'l2_leaf_reg': 0.012598882215158461, 'min_data_in_leaf': 29}. Best is trial 28 with value: 0.464821183288043.
