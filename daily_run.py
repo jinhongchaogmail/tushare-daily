@@ -91,7 +91,8 @@ def predict_stock(ts_code, df):
         
         # 调试输出
         count_debug += 1
-        if count_debug <= 5 or count_debug % 200 == 0 or prob_up > 0.25:
+        # 如果总数少于 200 (调试模式)，则打印所有预测结果
+        if len(report) < 200 or count_debug <= 5 or count_debug % 200 == 0 or prob_up > 0.25:
             print(f"  [{ts_code}] 预测: 跌{prob_down:.2f} 平{prob_flat:.2f} 涨{prob_up:.2f}", flush=True)
 
         # 策略逻辑
@@ -279,6 +280,11 @@ def main():
         return
 
     print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理...", flush=True)
+    
+    # --- 调试模式：限制处理数量 ---
+    # 为了快速验证，仅处理前 100 只股票
+    ts_codes = ts_codes.head(100)
+    print(f"⚠️ 调试模式已开启：仅处理前 {len(ts_codes)} 只股票", flush=True)
     
     total = len(ts_codes)
     skipped = []
