@@ -84,7 +84,29 @@ def predict_stock(ts_code, df):
 
     try:
         # 特征工程
+        # 1. 基础特征 (shared)
         df_features = apply_technical_indicators(df)
+        
+        # 2. 补充特征 (local add_features - 包含 ma5, rsi14 等)
+        # 注意: add_features 会修改传入的 df，所以这里直接用
+        df_features = add_features(df_features)
+        
+        # 3. 补全剩余缺失特征 (model specific)
+        # 模型可能需要的额外特征，这里进行补全
+        if 'close_lag1' not in df_features.columns:
+            df_features['close_lag1'] = df_features['close'].shift(1)
+        
+        if 'volume_change' not in df_features.columns:
+            df_features['volume_change'] = df_features['volume'].pct_change()
+            
+        if 'excess_return' not in df_features.columns:
+            # 简单近似: 假设大盘涨跌为0，超额收益 ≈ 个股涨跌
+            df_features['excess_return'] = df_features['close'].pct_change()
+            
+        if 'price_vol_corr' not in df_features.columns:
+            # 价量相关性 (过去20天)
+            df_features['price_vol_corr'] = df_features['close'].rolling(20).corr(df_features['volume'])
+
         latest_row = df_features.iloc[[-1]].copy()
         current_date = latest_row['trade_date'].values[0]
         
