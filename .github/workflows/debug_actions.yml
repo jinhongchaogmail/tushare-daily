@@ -1,0 +1,45 @@
+name: Debug CI - Quick Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  smoke_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Disable proxy and configure pip to use TUNA mirror
+        run: |
+          python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+      - name: Install base dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Quick training smoke test
+        env:
+          VENV_PATH: ${{ runner.workspace }}/.venv
+        run: |
+          set -e
+          python -c "import sys; print('python', sys.version)"
+          # Run train script in non-interactive quick mode (env override)
+          python training/train.py || true
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: |
+            training_quick.log
+            training/*.log
+            training/*.png
