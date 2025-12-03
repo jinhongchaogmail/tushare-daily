@@ -37,6 +37,7 @@ MIN_RETURN_THRESHOLD = 0.03
 model = None
 vol_multiplier = 0.89
 report = []
+all_predictions = [] # 存储所有预测结果，用于强制输出
 count_debug = 0
 
 if not TUSHARE_TOKEN:
@@ -74,9 +75,11 @@ def init_model():
 
 def predict_stock(ts_code, df):
     """对单只股票进行预测 (多空双向)"""
-    global report, count_debug
+    global report, count_debug, all_predictions
     
     if model is None or len(df) < 60:
+        if len(df) < 60:
+            print(f"  [{ts_code}] 数据不足 ({len(df)}行)，跳过预测", flush=True)
         return
 
     try:
@@ -105,6 +108,22 @@ def predict_stock(ts_code, df):
         position = 0.0
         reason = ""
         is_candidate = False
+        
+        # 收集所有预测结果 (Debug用)
+        all_predictions.append({
+            '代码': ts_code,
+            '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
+            '信号': "Debug",
+            '上涨概率': f"{prob_up:.1%}",
+            '下跌概率': f"{prob_down:.1%}",
+            '波动率': f"{current_vol:.1%}",
+            '预期收益': f"{implied_return:.1%}",
+            '建议仓位': "0.0%",
+            '理由': "Debug记录",
+            'prob_up_raw': prob_up,
+            'prob_down_raw': prob_down,
+            'max_prob': max(prob_up, prob_down)
+        })
         
         # --- 阈值设置 (基于最新模型分析: Down 准, Up 保守) ---
         THRESHOLD_WATCH_UP = 0.28    # 降低做多门槛
@@ -206,10 +225,26 @@ def generate_report():
         print(f"✅ 报告已保存: {report_path} 和 {csv_path}", flush=True)
     else:
         print("ℹ️ 今日无符合条件的交易机会", flush=True)
-        os.makedirs(os.path.dirname(report_path), exist_ok=True)
-        with open(report_path, "w") as f:
-            f.write(f"# 每日量化策略报告 ({today_str})\n\n")
-            f.write("今日无符合条件的交易机会。")
+        
+        # --- 强制输出 Top 10 (Debug) ---
+        if all_predictions:
+            print("⚠️ 强制输出 Top 10 预测结果 (即使未达阈值)", flush=True)
+            df_all = pd.DataFrame(all_predictions)
+            # 按最大概率排序
+            df_top = df_all.sort_values('max_prob', ascending=False).head(10)
+            
+            os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            with open(report_path, "w") as f:
+                f.write(f"# 每日量化策略报告 ({today_str}) - DEBUG MODE\n\n")
+                f.write("⚠️ **注意**: 今日无符合阈值的机会。以下为概率最高的 Top 10 股票 (仅供调试参考)。\n\n")
+                f.write(df_top.drop(columns=['prob_up_raw', 'prob_down_raw', 'max_prob'], errors='ignore').to_markdown(index=False))
+            
+            print(f"✅ 强制报告已保存: {report_path}", flush=True)
+        else:
+            os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            with open(report_path, "w") as f:
+                f.write(f"# 每日量化策略报告 ({today_str})\n\n")
+                f.write("今日无符合条件的交易机会，且无任何有效预测数据。")
 
 def get_hist(ts_code: str):
     """获取历史数据，若数据不足则返回 None"""
