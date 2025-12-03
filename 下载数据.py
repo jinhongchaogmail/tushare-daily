@@ -77,7 +77,7 @@ def init_model():
         return False
 
 def predict_stock(ts_code, df):
-    """对单只股票进行预测"""
+    """对单只股票进行预测 (多空双向)"""
     global report, count_debug
     
     if model is None or len(df) < 60:
@@ -109,59 +109,101 @@ def predict_stock(ts_code, df):
         reason = ""
         is_candidate = False
         
-        # 宽松筛选
-        if prob_up > prob_down and prob_up > 0.35:
-            signal = "🔵 关注"
+        # --- 阈值设置 (基于最新模型分析: Down 准, Up 保守) ---
+        THRESHOLD_WATCH_UP = 0.28    # 降低做多门槛
+        THRESHOLD_STRONG_UP = 0.38   # 强力做多门槛
+        THRESHOLD_WATCH_DOWN = 0.35  # 做空门槛
+        THRESHOLD_STRONG_DOWN = 0.45 # 强力做空门槛
+
+        # --- 1. 做多信号 (Long) ---
+        if prob_up > prob_down and prob_up > THRESHOLD_WATCH_UP:
+            signal = "🔵 关注多"
             reason = f"看涨({prob_up:.1%})"
             is_candidate = True
+            
+            # 强力买入条件
+            if prob_up > THRESHOLD_STRONG_UP and prob_up > prob_flat:
+                if implied_return > MIN_RETURN_THRESHOLD:
+                    signal = "🔴 强力做多"
+                    position = min(1.0, 0.02 / (current_vol + 1e-5))
+                    reason = f"高胜率({prob_up:.0%}) 高赔率(>{implied_return:.1%})"
+                else:
+                    signal = "🟠 潜伏做多" # 胜率高但波动率低
+                    reason = f"高胜率({prob_up:.0%}) 低波动"
 
-        # 强买入信号
-        if prob_up > 0.4 and prob_up > prob_down and prob_up > prob_flat:
-            if implied_return > MIN_RETURN_THRESHOLD:
-                signal = "🔴 买入"
+        # --- 2. 做空信号 (Short) ---
+        elif prob_down > prob_up and prob_down > THRESHOLD_WATCH_DOWN:
+            signal = "🟡 关注空"
+            reason = f"看跌({prob_down:.1%})"
+            is_candidate = True
+            
+            if prob_down > THRESHOLD_STRONG_DOWN and prob_down > prob_flat:
+                signal = "🟢 强力做空"
+                reason = f"高确信度({prob_down:.1%})"
                 position = min(1.0, 0.02 / (current_vol + 1e-5))
-                reason = f"高胜率({prob_up:.0%}) 高赔率(>{implied_return:.1%})"
-                is_candidate = True
-        
+
         if is_candidate:
             item = {
                 '代码': ts_code,
                 '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
                 '信号': signal,
                 '上涨概率': f"{prob_up:.1%}",
+                '下跌概率': f"{prob_down:.1%}",
                 '波动率': f"{current_vol:.1%}",
                 '预期收益': f"{implied_return:.1%}",
                 '建议仓位': f"{position:.1%}",
                 '理由': reason,
-                'prob_up_raw': prob_up
+                'prob_up_raw': prob_up,
+                'prob_down_raw': prob_down,
+                'max_prob': max(prob_up, prob_down)
             }
             report.append(item)
-            if "买入" in signal:
-                print(f"  !!! 发现机会 [{ts_code}]: {reason}", flush=True)
+            if "强力" in signal:
+                print(f"  !!! 发现机会 [{ts_code}]: {signal} - {reason}", flush=True)
 
     except Exception as e:
         pass
 
 def generate_report():
-    """生成预测报告"""
+    """生成预测报告 (分多空展示)"""
     today_str = datetime.now().strftime("%Y-%m-%d")
     report_path = "reports/strategy_report.md"
     
     if report:
-        df_report = pd.DataFrame(report).sort_values('prob_up_raw', ascending=False).drop(columns=['prob_up_raw'])
+        df_report = pd.DataFrame(report)
         
-        print(f"\n=== 每日策略报告 (Top 20 / {len(df_report)}) ===", flush=True)
-        print(df_report.head(20).to_markdown(index=False), flush=True)
+        # 分离多空
+        df_long = df_report[df_report['信号'].str.contains('多')].sort_values('prob_up_raw', ascending=False)
+        df_short = df_report[df_report['信号'].str.contains('空')].sort_values('prob_down_raw', ascending=False)
+        
+        # 移除原始排序列，保持表格整洁
+        cols_to_drop = ['prob_up_raw', 'prob_down_raw', 'max_prob']
+        df_long_display = df_long.drop(columns=cols_to_drop, errors='ignore')
+        df_short_display = df_short.drop(columns=cols_to_drop, errors='ignore')
+        
+        print(f"\n=== 每日策略报告 (总计: {len(df_report)}) ===", flush=True)
+        print(f"多头机会: {len(df_long)} | 空头机会: {len(df_short)}", flush=True)
         
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
         with open(report_path, "w") as f:
             f.write(f"# 每日量化策略报告 ({today_str})\n\n")
-            f.write(f"入选机会: {len(df_report)}\n\n")
-            f.write("### 🔴 重点关注 (Top 50)\n")
-            f.write(df_report.head(50).to_markdown(index=False))
+            f.write(f"**总计入选**: {len(df_report)} (多头: {len(df_long)}, 空头: {len(df_short)})\n\n")
+            
+            f.write("## 🔴 多头机会 (Top 50)\n")
+            if not df_long.empty:
+                f.write(df_long_display.head(50).to_markdown(index=False))
+            else:
+                f.write("无符合条件的多头机会。\n")
+            
+            f.write("\n\n## 🟢 空头机会 (Top 50)\n")
+            if not df_short.empty:
+                f.write(df_short_display.head(50).to_markdown(index=False))
+            else:
+                f.write("无符合条件的空头机会。\n")
         
         csv_path = report_path.replace(".md", ".csv")
-        df_report.to_csv(csv_path, index=False)
+        # CSV 保留原始概率列，方便用户自己排序
+        df_report.sort_values('max_prob', ascending=False).to_csv(csv_path, index=False)
         print(f"✅ 报告已保存: {report_path} 和 {csv_path}", flush=True)
     else:
         print("ℹ️ 今日无符合条件的交易机会", flush=True)

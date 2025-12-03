@@ -76,3 +76,18 @@ jobs:
           body: "Updated on ${{ steps.date.outputs.today }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📧 Send Email Report
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_SERVER || 'smtp.qq.com' }}
+          server_port: ${{ secrets.MAIL_PORT || 465 }}
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: 每日量化策略报告 (${{ steps.date.outputs.today }})
+          body: file://reports/strategy_report.md
+          to: ${{ secrets.MAIL_TO }}
+          from: GitHub Actions <${{ secrets.MAIL_USERNAME }}>
+          secure: true
+          attachments: reports/strategy_report.csv
