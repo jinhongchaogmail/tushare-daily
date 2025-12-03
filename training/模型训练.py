@@ -1058,6 +1058,13 @@ def run_optuna_study(combined_df, base_save_path):
             count_down = class_counts_final.get(-1, 0)
             count_flat = class_counts_final.get(0, 0)
             count_up = class_counts_final.get(1, 0)
+            
+            # --- v30: 交易次数惩罚 (防止策略过于保守) ---
+            # 如果买入信号太少，说明策略无法产生实际收益，应被视为无效试验
+            if count_up < 10: 
+                logger.warning(f"试验 {trial.number}: 买入信号过少 ({count_up} < 10)，给予惩罚。")
+                return 0.0
+
             total_samples = count_down + count_flat + count_up
             if total_samples == 0:
                 logger.warning(f"试验 {trial.number}: 平衡指标的总样本数为 0。")
