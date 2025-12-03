@@ -89,7 +89,21 @@ def predict_stock(ts_code, df):
         current_date = latest_row['trade_date'].values[0]
         
         # 预测
-        prob = model.predict_proba(latest_row)[0]
+        # v28 修复: CatBoost 预测时特征顺序必须与训练时一致
+        # 训练时的特征顺序 (参考 training/train.py get_feature_columns)
+        # 这里我们动态获取模型需要的特征名
+        model_feature_names = model.feature_names_
+        
+        # 检查缺失特征
+        missing_features = [f for f in model_feature_names if f not in latest_row.columns]
+        if missing_features:
+            print(f"  [{ts_code}] 缺失特征: {missing_features}，跳过", flush=True)
+            return
+
+        # 按模型要求的顺序重排特征
+        X_predict = latest_row[model_feature_names]
+        
+        prob = model.predict_proba(X_predict)[0]
         prob_down, prob_flat, prob_up = prob[0], prob[1], prob[2]
         
         # 调试输出
