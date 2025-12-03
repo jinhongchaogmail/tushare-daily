@@ -64,13 +64,14 @@ jobs:
       if: success()
       uses: dawidd6/action-send-mail@v3
       with:
-        server_address: smtp.qq.com
-        server_port: 465
+        # 优先使用 Secrets 中的配置，否则默认使用 QQ 邮箱
+        server_address: ${{ secrets.MAIL_SERVER || 'smtp.qq.com' }}
+        server_port: ${{ secrets.MAIL_PORT || 465 }}
         username: ${{ secrets.MAIL_USERNAME }}
         password: ${{ secrets.MAIL_PASSWORD }}
-        subject: 每日量化策略报告
+        subject: 每日量化策略报告 (${{ github.event.schedule || 'Manual' }})
         body: file://reports/strategy_report.md
         to: ${{ secrets.MAIL_TO }}
-        from: GitHub Actions
+        from: GitHub Actions <${{ secrets.MAIL_USERNAME }}>
         secure: true
         attachments: reports/strategy_report.csv
