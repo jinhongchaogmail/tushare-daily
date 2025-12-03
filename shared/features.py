@@ -123,16 +123,21 @@ def apply_technical_indicators(df):
     # --- (v25) 删除冗余/低重要性列 ---
     # 修复: pandas_ta 可能生成小写列名 (ma5, ma10) 导致无法删除
     # 显式添加常见的小写变体
-    cols_to_drop = [
-        'SMA_5', 'SMA_10', 'SMA_20',
-        'ma5', 'ma10', 'ma20', 'SMA_5.0', 'SMA_10.0', 'SMA_20.0', # 常见变体
-        'BBU_5_2.0_2.0', 'BBL_5_2.0_2.0', 'BBM_5_2.0_2.0', 'BBP_5_2.0_2.0',
-        'MACD_12_26_9', 'MACDs_12_26_9'
-    ]
+    # cols_to_drop = [
+    #     'SMA_5', 'SMA_10', 'SMA_20',
+    #     'ma5', 'ma10', 'ma20', 'SMA_5.0', 'SMA_10.0', 'SMA_20.0', # 常见变体
+    #     'BBU_5_2.0_2.0', 'BBL_5_2.0_2.0', 'BBM_5_2.0_2.0', 'BBP_5_2.0_2.0',
+    #     'MACD_12_26_9', 'MACDs_12_26_9'
+    # ]
     
     # 动态查找并删除所有以 SMA_ 或 ma (后跟数字) 开头的列，如果它们不在保留列表中
     # 这里简单起见，直接使用扩展的列表
-    existing_cols_to_drop = [c for c in cols_to_drop if c in df.columns]
-    df.drop(columns=existing_cols_to_drop, inplace=True, errors='ignore')
+    # existing_cols_to_drop = [c for c in cols_to_drop if c in df.columns]
+    # df.drop(columns=existing_cols_to_drop, inplace=True, errors='ignore')
+    
+    # 兼容性修复: 重命名 pandas_ta 生成的列以匹配旧模型 (ma5, ma10, ma20)
+    if 'SMA_5' in df.columns: df['ma5'] = df['SMA_5']
+    if 'SMA_10' in df.columns: df['ma10'] = df['SMA_10']
+    if 'SMA_20' in df.columns: df['ma20'] = df['SMA_20']
     
     return df

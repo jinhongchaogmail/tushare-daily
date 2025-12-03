@@ -85,13 +85,10 @@ def predict_stock(ts_code, df):
     try:
         # 特征工程
         # 1. 基础特征 (shared)
+        # 注意: shared/features.py 已修改为输出 ma5, rsi14 等基础特征，无需再手动补全
         df_features = apply_technical_indicators(df)
         
-        # 2. 补充特征 (local add_features - 包含 ma5, rsi14 等)
-        # 注意: add_features 会修改传入的 df，所以这里直接用
-        df_features = add_features(df_features)
-        
-        # 3. 补全剩余缺失特征 (model specific)
+        # 2. 补全剩余缺失特征 (model specific)
         # 模型可能需要的额外特征，这里进行补全
         if 'close_lag1' not in df_features.columns:
             df_features['close_lag1'] = df_features['close'].shift(1)
