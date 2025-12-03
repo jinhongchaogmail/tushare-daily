@@ -6,14 +6,43 @@ import requests
 import xcsc_tushare as ts
 from datetime import datetime
 
-# 添加 shared 到路径以便导入 feature_engineering
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
-try:
-    from features import apply_technical_indicators
-    HAS_FEATURE_ENGINE = True
-except ImportError as e:
-    print(f"⚠️ 警告：无法导入特征工程 ({e})，将跳过预测功能", flush=True)
-    HAS_FEATURE_ENGINE = False
+# 动态导入特征工程逻辑 (优先使用模型绑定的 frozen_features.py)
+# 这样可以保证预测时使用的特征计算逻辑与模型训练时完全一致，
+# 即使 shared/features.py 已经更新或修改。
+HAS_FEATURE_ENGINE = False
+apply_technical_indicators = None
+
+def load_feature_engineering():
+    global apply_technical_indicators, HAS_FEATURE_ENGINE
+    
+    # 1. 尝试加载模型目录下的 frozen_features.py (模型伴生代码)
+    frozen_features_path = os.path.join(os.path.dirname(MODEL_PATH), 'frozen_features.py')
+    if os.path.exists(frozen_features_path):
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("frozen_features", frozen_features_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules["frozen_features"] = module
+            spec.loader.exec_module(module)
+            apply_technical_indicators = module.apply_technical_indicators
+            HAS_FEATURE_ENGINE = True
+            print(f"✅ 已加载模型伴生特征代码: {frozen_features_path}", flush=True)
+            return
+        except Exception as e:
+            print(f"⚠️ 加载 frozen_features.py 失败: {e}，将回退到 shared/features.py", flush=True)
+
+    # 2. 回退到项目默认的 shared/features.py
+    try:
+        sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+        from features import apply_technical_indicators as shared_ati
+        apply_technical_indicators = shared_ati
+        HAS_FEATURE_ENGINE = True
+        print("✅ 已加载默认特征代码: shared/features.py", flush=True)
+    except ImportError as e:
+        print(f"⚠️ 警告：无法导入特征工程 ({e})，将跳过预测功能", flush=True)
+        HAS_FEATURE_ENGINE = False
+
+load_feature_engineering()
 
 # 尝试导入 CatBoost
 try:
@@ -85,25 +114,12 @@ def predict_stock(ts_code, df):
     try:
         # 特征工程
         # 1. 基础特征 (shared)
-        # 注意: shared/features.py 已修改为输出 ma5, rsi14 等基础特征，无需再手动补全
+        # (v32: shared/features.py 现在包含所有特征逻辑，包括 close_lag1, volume_change 等)
         df_features = apply_technical_indicators(df)
         
-        # 2. 补全剩余缺失特征 (model specific)
-        # 模型可能需要的额外特征，这里进行补全
-        if 'close_lag1' not in df_features.columns:
-            df_features['close_lag1'] = df_features['close'].shift(1)
+        # 2. (v32: 移除手动补全，已统一到 shared/features.py)
+        # if 'close_lag1' not in df_features.columns: ...
         
-        if 'volume_change' not in df_features.columns:
-            df_features['volume_change'] = df_features['volume'].pct_change()
-            
-        if 'excess_return' not in df_features.columns:
-            # 简单近似: 假设大盘涨跌为0，超额收益 ≈ 个股涨跌
-            df_features['excess_return'] = df_features['close'].pct_change()
-            
-        if 'price_vol_corr' not in df_features.columns:
-            # 价量相关性 (过去20天)
-            df_features['price_vol_corr'] = df_features['close'].rolling(20).corr(df_features['volume'])
-
         latest_row = df_features.iloc[[-1]].copy()
         current_date = latest_row['trade_date'].values[0]
         
@@ -302,26 +318,7 @@ def list_main_board_cs():
     temp0 = temp0[temp0["list_date"] <= today]  # 已经上市
     return temp0[["ts_code", "name"]].reset_index(drop=True)
 
-def add_features(df: pd.DataFrame) -> pd.DataFrame:
-    """添加技术指标"""
-    df["ma5"] = df["close"].rolling(5).mean()
-    df["ma10"] = df["close"].rolling(10).mean()
-    df["ma20"] = df["close"].rolling(20).mean()
-    df["volatility_10"] = df["close"].rolling(10).std()
-    df["vol_ma5"] = df["volume"].rolling(5).mean()
-    df["momentum_5"] = df["close"].pct_change(5)
-    delta = df["close"].diff()
-    up = delta.clip(lower=0)
-    down = -1 * delta.clip(upper=0)
-    roll_up = up.rolling(14).mean()
-    roll_down = down.rolling(14).mean()
-    rs = roll_up / (roll_down + 1e-9)
-    df["rsi14"] = 100 - (100 / (1 + rs))
-    ema12 = df["close"].ewm(span=12, adjust=False).mean()
-    ema26 = df["close"].ewm(span=26, adjust=False).mean()
-    df["macd"] = ema12 - ema26
-    df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
-    return df
+# (v32: 已移除 add_features 函数，确保保存的数据只包含原始行情)
 
 def downcast(df: pd.DataFrame) -> pd.DataFrame:
     """降低浮点精度以节省空间"""
@@ -349,10 +346,8 @@ def main():
 
     print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理...", flush=True)
     
-    # --- 调试模式：限制处理数量 ---
-    # 为了快速验证，仅处理前 100 只股票
-    ts_codes = ts_codes.head(100)
-    print(f"⚠️ 调试模式已开启：仅处理前 {len(ts_codes)} 只股票", flush=True)
+    # 全量下载模式：默认处理所有符合条件的股票
+    print("⚠️ 全量下载模式：处理所有符合条件的股票", flush=True)
     
     total = len(ts_codes)
     skipped = []
@@ -389,10 +384,10 @@ def main():
             try:
                 # 预测（在保存前）
                 if model_enabled and model is not None:
+                    # 使用副本进行预测，不污染原始数据
                     predict_stock(code, df.copy())
                 
-                # 添加特征并保存
-                df = add_features(df)
+                # 仅进行降精度处理，不添加任何特征，保持数据纯洁
                 df = downcast(df)
                 out_file = os.path.join(OUT_DIR, f"{code}.parquet")
                 df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)

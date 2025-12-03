@@ -120,6 +120,26 @@ def apply_technical_indicators(df):
     # 计算连续上涨天数 (下跌则重置为0)
     df['consecutive_up_days'] = s * (s.groupby((s != s.shift()).cumsum()).cumcount() + 1)
 
+    # --- (v32 新增: 统一补全缺失特征) ---
+    # 将分散在 train.py 和 daily_run.py 中的特征逻辑统一至此
+    
+    # 1. 滞后特征
+    if 'close_lag1' not in df.columns:
+        df['close_lag1'] = df['close'].shift(1)
+        
+    # 2. 量能变化
+    if 'volume_change' not in df.columns:
+        df['volume_change'] = df['volume'].pct_change()
+        
+    # 3. 价量相关性 (过去20天)
+    if 'price_vol_corr' not in df.columns:
+        df['price_vol_corr'] = df['close'].rolling(20, min_periods=1).corr(df['volume'])
+        
+    # 4. 超额收益 (简单近似)
+    # 注意: train.py 中有更复杂的 excess_return 计算 (减去大盘)，这里仅作为 fallback
+    if 'excess_return' not in df.columns:
+        df['excess_return'] = df['close'].pct_change()
+
     # --- (v25) 删除冗余/低重要性列 ---
     # 修复: pandas_ta 可能生成小写列名 (ma5, ma10) 导致无法删除
     # 显式添加常见的小写变体

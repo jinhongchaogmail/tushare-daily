@@ -397,11 +397,22 @@ def process_single_file(file_path):
             return None
 
         # 优化2.1：去重的特征计算
+        # (v32 优化: 确保使用纯净的原始数据进行特征计算，避免云端旧特征污染)
+        raw_cols = ['trade_date', 'ts_code', 'open', 'high', 'low', 'close', 'pre_close', 'change', 'pct_chg', 'vol', 'amount', 'volume']
+        # 保留存在的原始列
+        cols_to_keep = [c for c in raw_cols if c in df.columns]
+        # 如果有其他非特征列需要保留，可以在这里添加
+        
+        # 仅保留原始列，丢弃可能存在的旧特征
+        df = df[cols_to_keep].copy()
+        
         df = apply_technical_indicators(df)
 
-        # 添加滞后特征 - 注：close_pct_change 已在 apply_technical_indicators 中计算
-        df['close_lag1'] = df['close'].shift(1)
-        # 注：return_5d 已在 apply_technical_indicators 中计算，无需重复
+        # --- (v32 优化: 移除手动特征添加，已统一移至 shared/features.py) ---
+        # df['close_lag1'] = df['close'].shift(1)
+        # df['price_vol_corr'] = ...
+        # df['volume_change'] = ...
+        # -----------------------------------------------------------
         
         # --- (v19 新增：时间特征) ---
         # 确保索引是日期类型
@@ -427,8 +438,9 @@ def process_single_file(file_path):
         # --- 时间特征结束 ---
         
         # --- (新增 v16：价量相关性特征) ---
-        df['price_vol_corr'] = df['close'].rolling(20, min_periods=1).corr(df['volume'])
-        df['volume_change'] = df['volume'].pct_change()
+        # (v32: 已移至 shared/features.py)
+        # df['price_vol_corr'] = df['close'].rolling(20, min_periods=1).corr(df['volume'])
+        # df['volume_change'] = df['volume'].pct_change()
 
         # v19: 处理 Inf 值（除零等导致）
         df = df.replace([np.inf, -np.inf], np.nan)
@@ -1413,6 +1425,28 @@ def run_optuna_study(combined_df, base_save_path):
                             with open(params_path, 'w') as f:
                                 json.dump(final_params, f, indent=2)
                             print(f"模型阈值参数已保存到: {params_path}")
+
+                            # --- (v31 新增: 保存特征工程代码快照) ---
+                            # 确保模型与特征生成逻辑绑定
+                            try:
+                                # 尝试定位 shared/features.py
+                                current_dir = os.path.dirname(os.path.abspath(__file__))
+                                # 假设 train.py 在 training/ 目录下，shared 在 ../shared/
+                                features_src = os.path.join(current_dir, '..', 'shared', 'features.py')
+                                if not os.path.exists(features_src):
+                                    # 尝试直接导入路径
+                                    import features
+                                    features_src = features.__file__
+                                
+                                if os.path.exists(features_src):
+                                    features_dst = os.path.join(GDRIVE_SAVE_PATH, 'frozen_features.py')
+                                    shutil.copy2(features_src, features_dst)
+                                    print(f"特征工程代码快照已保存到: {features_dst}")
+                                else:
+                                    logger.warning("未找到 features.py 源文件，无法保存代码快照。")
+                            except Exception as e:
+                                logger.warning(f"保存特征工程代码快照失败: {e}")
+                            # --- (新增结束) ---
                             
                             # --- (v17 新增：高级模型评估与可视化) ---
                             print("正在生成高级评估报告...")

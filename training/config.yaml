@@ -3,7 +3,7 @@
 
 # 数据处理参数
 data:
-  max_files_to_process: 10000 # 生产模式：处理所有文件
+  max_files_to_process: 5000 # 全量模式：覆盖所有文件
   min_dataframe_rows: 20
   cache_enabled: true # 启用缓存
   cache_version: "v18_excess_return"  # 版本变更时自动失效缓存
@@ -33,7 +33,7 @@ features:
 
 # Optuna 寻优参数
 optuna:
-  n_trials: 200  # 生产模式：运行 500 次
+  n_trials: 50  # 优化模式：增加试验次数
   n_jobs: 2  # 设为1避免与CatBoost多线程冲突
   tsc_splits: 3  # 优化：恢复为 3
   future_gap: 5  # CV训练/验证集之间的间隔天数，防止标签泄露
