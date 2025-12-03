@@ -52,7 +52,17 @@ jobs:
           retention-days: 7
 
       - name: 📦 Compress parquet files
-        run: tar -czf parquet-data.tar.gz data/*.parquet
+        run: |
+          # Ensure glob expands to empty array instead of literal when no matches
+          shopt -s nullglob
+          files=(data/*.parquet)
+          if [ ${#files[@]} -gt 0 ]; then
+            echo "Found ${#files[@]} parquet files, creating archive..."
+            tar -czf parquet-data.tar.gz "${files[@]}"
+            echo "Archive created: parquet-data.tar.gz"
+          else
+            echo "No parquet files found under data/, skipping archive creation."
+          fi
 
       - name: 📅 Get Date
         id: date
