@@ -183,7 +183,7 @@ try:
     # 添加 shared 到路径以便导入 feature_engineering
     sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'shared'))
     try:
-        from 特征工程 import apply_technical_indicators
+        from features import apply_technical_indicators
     except ImportError:
         print("警告：无法从 shared 导入特征工程。如果可用，将使用本地定义。")
 

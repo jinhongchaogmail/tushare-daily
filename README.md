@@ -5,24 +5,29 @@
 ## 项目结构
 
 - **.github/workflows/**: GitHub Actions 工作流配置
-  - `daily_prediction.yml`: 每日定时运行的任务 (下载数据 -> 预测 -> 生成报告)
-- **optuna/**: 核心策略代码
-  - `quant/predict_strategy.py`: 预测脚本 (被 run_pipeline.py 调用)
-  - `quant/feature_engineering.py`: 特征工程逻辑
-  - `model/`: 存放模型文件 (.cbm) 和参数 (.json)
-- **run_pipeline.py**: 主程序 (流式下载数据 + 实时预测)
+  - `run.yml`: 每日定时运行的任务 (下载数据 -> 预测 -> 发送邮件)
+- **training/**: 模型训练与优化
+  - `train.py`: 核心训练脚本 (Optuna + CatBoost)
+  - `config.yaml`: 训练配置文件
+  - `v16_OPTIMIZATION_ARCHIVE.md`: 历史优化文档归档
+- **shared/**: 公共模块
+  - `features.py`: 统一的特征计算逻辑 (SSOT)
+- **daily_run.py**: 生产环境主程序 (下载 -> 预测 -> 报告)
 - **data/**: 存放下载的股票数据 (.parquet 格式)
-- **notebooks/**: 研究用的 Jupyter Notebooks
-- **legacy/**: 旧版本的脚本和工具
-- **artifacts/**: 历史运行生成的图片和报告
+- **optuna_results/**: 训练结果与日志
 
 ## 运行流程
 
-1. **启动流水线**: `run_pipeline.py` 开始运行。
-2. **流式处理**: 
-   - 下载一只股票数据 -> 立即进行特征计算 -> 模型推理。
-   - 这种方式比先下载后计算更高效。
-3. **生成报告**: 筛选出高胜率机会，生成 Markdown 报告并上传为 Artifact。
+1. **每日预测**:
+   - GitHub Actions 触发 `daily_run.py`。
+   - 脚本下载最新数据，调用 `shared/features.py` 计算特征。
+   - 加载 `catboost_final_model.cbm` 进行预测 (支持做多与做空)。
+   - 生成 HTML/Markdown 报告并通过邮件发送。
+
+2. **模型训练**:
+   - 运行 `training/train.py`。
+   - 使用 Optuna 进行超参数寻优。
+   - 生成新的模型文件 `catboost_final_model.cbm`。
 
 ## 本地运行
 
@@ -34,8 +39,8 @@
    ```bash
    export TUSHARE_TOKEN="your_token_here"
    ```
-3. 运行流水线:
+3. 运行预测:
    ```bash
-   python 预测.py
+   python daily_run.py
    ```
 

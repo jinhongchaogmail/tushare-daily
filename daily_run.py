@@ -6,14 +6,10 @@ import requests
 import xcsc_tushare as ts
 from datetime import datetime
 
-# 添加 shared 到路径以便导入特征工程
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SHARED_DIR = os.path.join(SCRIPT_DIR, 'shared')
-if SHARED_DIR not in sys.path:
-    sys.path.insert(0, SHARED_DIR)
-
+# 添加 shared 到路径以便导入 feature_engineering
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
 try:
-    from 特征工程 import apply_technical_indicators
+    from features import apply_technical_indicators
     HAS_FEATURE_ENGINE = True
 except ImportError as e:
     print(f"⚠️ 警告：无法导入特征工程 ({e})，将跳过预测功能", flush=True)
@@ -162,7 +158,9 @@ def predict_stock(ts_code, df):
                 print(f"  !!! 发现机会 [{ts_code}]: {signal} - {reason}", flush=True)
 
     except Exception as e:
-        pass
+        print(f"❌ [{ts_code}] 预测出错: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 
 def generate_report():
     """生成预测报告 (分多空展示)"""

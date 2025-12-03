@@ -1,9 +1,0 @@
-pandas
-pandas_ta
-numpy
-catboost
-tushare
-tabulate
-pyarrow
-xcsc-tushare
-

@@ -8,15 +8,15 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 LOG_FILE="training.log"
-SCRIPT_PATH="training/模型训练.py"
+SCRIPT_PATH="training/train.py"
 
 echo -e "${GREEN}=== 启动本地训练流程 ===${NC}"
 
 # 1. 检查是否已有训练在运行
 echo -e "${YELLOW}[1/5] 检查运行状态...${NC}"
 # 使用 pgrep 查找包含脚本文件名的进程 (放宽匹配条件，不强制 python3)
-if pgrep -f "模型训练.py" > /dev/null; then
-    PID=$(pgrep -f "模型训练.py" | head -n 1)
+if pgrep -f "training/train.py" > /dev/null; then
+    PID=$(pgrep -f "training/train.py" | head -n 1)
     echo -e "${GREEN}✅ 检测到训练脚本正在后台运行 (PID: $PID)。${NC}"
     echo -e "${CYAN}⚠️  由于 GPU 资源限制，不启动新进程，转为显示当前运行状态。${NC}"
     echo -e "----------------------------------------"

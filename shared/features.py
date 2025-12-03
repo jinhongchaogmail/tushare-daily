@@ -91,12 +91,47 @@ def apply_technical_indicators(df):
     # 使用 20日滚动标准差，确保与主脚本逻辑一致
     df['volatility_factor'] = df['close'].pct_change().rolling(window=20).std()
 
+    # --- (v27 新增: 多周期波动率与周期性特征波动率) ---
+    # 1. 不同周期的价格波动率 (捕捉短期和长期市场情绪)
+    df['volatility_5d'] = df['close'].pct_change().rolling(window=5).std()
+    df['volatility_10d'] = df['close'].pct_change().rolling(window=10).std()
+    df['volatility_60d'] = df['close'].pct_change().rolling(window=60).std()
+    
+    # 2. 周期性指标的波动率 (衡量指标本身的稳定性)
+    # RSI 的波动率 (衡量动量的稳定性: 波动大=情绪不稳, 波动小=趋势稳定)
+    df['rsi_vol_20'] = df['RSI_14'].rolling(window=20).std()
+    
+    # 乖离率的波动率 (衡量价格回归均值的剧烈程度)
+    df['bias_vol_20'] = df['bias_sma20'].rolling(window=20).std()
+    
+    # MACD 柱状图的波动率 (衡量趋势变化的剧烈程度)
+    df['macd_h_vol_20'] = df['MACDh_12_26_9'].rolling(window=20).std()
+
+    # --- (v26 新增: 趋势特征) ---
+    # 1. 距离近期最低点的天数 (20日)
+    # 使用 argmin 计算窗口内最小值的索引位置 (0 表示今天就是最低点)
+    df['days_since_low_20'] = df['low'].rolling(20, min_periods=5).apply(
+        lambda x: len(x) - 1 - np.argmin(x), raw=True
+    )
+    
+    # 2. 连涨天数
+    # 定义上涨: 收盘价 > 前一日收盘价
+    s = (df['close'] > df['close'].shift(1)).astype(int)
+    # 计算连续上涨天数 (下跌则重置为0)
+    df['consecutive_up_days'] = s * (s.groupby((s != s.shift()).cumsum()).cumcount() + 1)
+
     # --- (v25) 删除冗余/低重要性列 ---
+    # 修复: pandas_ta 可能生成小写列名 (ma5, ma10) 导致无法删除
+    # 显式添加常见的小写变体
     cols_to_drop = [
         'SMA_5', 'SMA_10', 'SMA_20',
+        'ma5', 'ma10', 'ma20', 'SMA_5.0', 'SMA_10.0', 'SMA_20.0', # 常见变体
         'BBU_5_2.0_2.0', 'BBL_5_2.0_2.0', 'BBM_5_2.0_2.0', 'BBP_5_2.0_2.0',
         'MACD_12_26_9', 'MACDs_12_26_9'
     ]
+    
+    # 动态查找并删除所有以 SMA_ 或 ma (后跟数字) 开头的列，如果它们不在保留列表中
+    # 这里简单起见，直接使用扩展的列表
     existing_cols_to_drop = [c for c in cols_to_drop if c in df.columns]
     df.drop(columns=existing_cols_to_drop, inplace=True, errors='ignore')
     

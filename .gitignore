@@ -1,8 +1,8 @@
 __pycache__/
 *.parquet
 *.tar.gz
+*.log
 tmp/
-optuna_env/
 .ipynb_checkpoints/
 catboost_info/
 optuna_results/
@@ -14,3 +14,6 @@ training/temp_repo/
 secrets.sh
 reports/
 .venv/
+skipped.csv
+.DS_Store
+.vscode/

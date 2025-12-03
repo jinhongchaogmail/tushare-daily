@@ -35,7 +35,7 @@ jobs:
       - name: 🚀 Run Download & Predict Script
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-        run: python 下载数据.py
+        run: python daily_run.py
 
       - name: 📤 Upload Data Artifact
         uses: actions/upload-artifact@v4
