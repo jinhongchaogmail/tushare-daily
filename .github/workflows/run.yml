@@ -36,6 +36,7 @@ jobs:
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           SKIP_PREDICTIONS: "1"  # 临时跳过预测以加速下载（重新训练模型后可移除）
+          SKIP_FINANCIALS: "1"   # 临时跳过财务数据对齐以加速下载（重新训练模型后可移除）
         run: python daily_run.py
 
       - name: 📤 Upload Data Artifact
