@@ -38,11 +38,10 @@ def apply_technical_indicators(df):
     
     # 量能特征
     df['volume_ma_ratio'] = df['volume'] / (df['volume'].rolling(20, min_periods=1).mean() + 1e-8)
-    df['price_volume_momentum'] = df['close'].pct_change() * df['volume']
     
     # 多周期收益率
     for lag in [2, 3, 5, 10]:
-        df[f'return_{lag}d'] = df['close'].pct_change(lag)
+        df[f'return_{lag}d'] = df['close'].pct_change(lag, fill_method=None)
     
     # --- 量能指标 ---
     df.ta.obv(append=True)
@@ -79,7 +78,7 @@ def apply_technical_indicators(df):
     df['bb_position'] = df['bb_position'].clip(-2, 2)
     
     # --- (v19：交叉特征) ---
-    df['close_pct_change'] = df['close'].pct_change()
+    df['close_pct_change'] = df['close'].pct_change(fill_method=None)
     df['rsi_volume_cross'] = (df['RSI_14'] / 50 - 1) * df['volume_ma_ratio']
     
     df['macd_trend_cross'] = df['MACDh_12_26_9'] * df['trend_strength']
@@ -89,13 +88,13 @@ def apply_technical_indicators(df):
     
     # [新增] 计算波动率因子 (Top 2 特征，用于动态阈值)
     # 使用 20日滚动标准差，确保与主脚本逻辑一致
-    df['volatility_factor'] = df['close'].pct_change().rolling(window=20).std()
+    df['volatility_factor'] = df['close'].pct_change(fill_method=None).rolling(window=20).std()
 
     # --- (v27 新增: 多周期波动率与周期性特征波动率) ---
     # 1. 不同周期的价格波动率 (捕捉短期和长期市场情绪)
-    df['volatility_5d'] = df['close'].pct_change().rolling(window=5).std()
-    df['volatility_10d'] = df['close'].pct_change().rolling(window=10).std()
-    df['volatility_60d'] = df['close'].pct_change().rolling(window=60).std()
+    df['volatility_5d'] = df['close'].pct_change(fill_method=None).rolling(window=5).std()
+    df['volatility_10d'] = df['close'].pct_change(fill_method=None).rolling(window=10).std()
+    df['volatility_60d'] = df['close'].pct_change(fill_method=None).rolling(window=60).std()
     
     # 2. 周期性指标的波动率 (衡量指标本身的稳定性)
     # RSI 的波动率 (衡量动量的稳定性: 波动大=情绪不稳, 波动小=趋势稳定)
@@ -195,7 +194,7 @@ def apply_technical_indicators(df):
     # 4. 超额收益 (简单近似)
     # 注意: train.py 中有更复杂的 excess_return 计算 (减去大盘)，这里仅作为 fallback
     if 'excess_return' not in df.columns:
-        df['excess_return'] = df['close'].pct_change()
+           df['excess_return'] = df['close'].pct_change(fill_method=None)
 
     # --- (v35 新增: 基于季报的财务特征) ---
     # 如果日表中包含对齐后的季报字段（如 total_revenue, n_income_attr_p, basic_eps）
@@ -233,7 +232,7 @@ def apply_technical_indicators(df):
     # momentum_5: 5日动量（与 return_5d 计算方式相同，但命名更直观）
     # 注意：如果模型已有 return_5d，可考虑删除此特征
     if 'momentum_5' not in df.columns:
-        df['momentum_5'] = df['close'].pct_change(5)
+        df['momentum_5'] = df['close'].pct_change(5, fill_method=None)
 
     # rank_pct_chg: 当日涨幅在近60日的分位数（有独立信息，重要性 1.58）
     if 'pct_chg' in df.columns and 'rank_pct_chg' not in df.columns:
@@ -245,7 +244,7 @@ def apply_technical_indicators(df):
     # 融资融券是重要的杠杆资金指标，能反映市场情绪
     if 'rzye' in df.columns:
         # 1. 融资余额变化率 (日度)
-        df['margin_balance_change'] = df['rzye'].pct_change()
+        df['margin_balance_change'] = df['rzye'].pct_change(fill_method=None)
         
         # 2. 融资余额 5日均线
         df['margin_balance_ma5'] = df['rzye'].rolling(5, min_periods=1).mean()
@@ -263,7 +262,7 @@ def apply_technical_indicators(df):
     # 融券数据 (做空指标)
     if 'rqye' in df.columns:
         # 5. 融券余额变化率
-        df['short_balance_change'] = df['rqye'].pct_change()
+        df['short_balance_change'] = df['rqye'].pct_change(fill_method=None)
         
         # 6. 融券/融资比 (做空情绪 vs 做多情绪)
         if 'rzye' in df.columns:
