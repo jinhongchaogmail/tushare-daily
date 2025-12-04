@@ -690,11 +690,13 @@ def main():
         return
 
     # 支持通过环境变量限制处理的股票数量，便于本地快速 smoke test
-    max_tickers = int(os.environ.get('MAX_TICKERS', '20'))
+    # 默认 0 表示全量下载；本地测试可设置 MAX_TICKERS=20
+    max_tickers = int(os.environ.get('MAX_TICKERS', '0'))
     if max_tickers and max_tickers > 0:
         ts_codes = ts_codes.head(max_tickers)
-    print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理... (MAX_TICKERS={max_tickers})", flush=True)
-    print("⚠️ 若需处理全部股票，请设置 MAX_TICKERS=0 或移除此限制", flush=True)
+        print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理... (MAX_TICKERS={max_tickers})", flush=True)
+    else:
+        print(f"✅ 获取到 {len(ts_codes)} 只股票，开始全量处理...", flush=True)
     
     total = len(ts_codes)
     skipped = []
