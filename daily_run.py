@@ -740,6 +740,9 @@ def main():
     
     print(f"📊 市场数据索引完成: 龙虎榜涉及 {len(top_list_by_code)} 只股票, 大宗交易涉及 {len(block_trade_by_code)} 只股票", flush=True)
     
+    # 读取是否跳过预测（用于加速纯下载任务）
+    SKIP_PREDICTIONS = os.environ.get('SKIP_PREDICTIONS', '0') in ('1', 'true', 'True')
+
     # 定义单只股票的处理函数 (v37 更新: 添加 top_list_by_code, block_trade_by_code)
     def process_one(code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code):
         df_daily = daily_map.get(code)
@@ -757,7 +760,7 @@ def main():
             return (code, False, 'postprocess_fail')
         
         try:
-            if model_enabled and model is not None:
+            if not SKIP_PREDICTIONS and model_enabled and model is not None:
                 predict_stock(code, df_merge.copy())
             out_file = os.path.join(OUT_DIR, f"{code}.parquet")
             df_merge.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
@@ -827,7 +830,7 @@ def main():
                             skipped.append(code)
                             continue
                         _, df = result
-                        if model_enabled and model is not None:
+                        if not SKIP_PREDICTIONS and model_enabled and model is not None:
                             predict_stock(code, df.copy())
                         out_file = os.path.join(OUT_DIR, f"{code}.parquet")
                         df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
@@ -845,9 +848,12 @@ def main():
         pd.DataFrame(skipped, columns=["ts_code"]).to_csv("skipped.csv", index=False)
         print(f"⚠️ 跳过 {len(skipped)} 个股票，已写入 skipped.csv", flush=True)
 
-    # 生成预测报告
-    if model_enabled and model is not None:
-        generate_report()
+    # 生成预测报告（可选，SKIP_PREDICTIONS=1 时跳过）
+    if SKIP_PREDICTIONS:
+        print("ℹ️ SKIP_PREDICTIONS=1，已跳过预测与报告生成", flush=True)
+    else:
+        if model_enabled and model is not None:
+            generate_report()
 
     print("🎉 RUN_DONE: 所有任务完成", flush=True)
 
