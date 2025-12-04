@@ -6,6 +6,15 @@ import requests
 import xcsc_tushare as ts
 from datetime import datetime
 
+TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")
+TS_SERVER = "http://116.128.206.39:7172"
+TS_ENV = "prd"
+START_DATE = "20220101"
+OUT_DIR = "data"
+MODEL_PATH = 'models/catboost_final_model.cbm'
+PARAMS_PATH = 'models/final_model_params.json'
+MIN_RETURN_THRESHOLD = 0.03
+
 # 动态导入特征工程逻辑 (优先使用模型绑定的 frozen_features.py)
 # 这样可以保证预测时使用的特征计算逻辑与模型训练时完全一致，
 # 即使 shared/features.py 已经更新或修改。
@@ -53,15 +62,6 @@ except ImportError:
     print("⚠️ 警告：未安装 catboost，将跳过预测功能", flush=True)
     HAS_MODEL = False
 
-TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")
-TS_SERVER = "http://116.128.206.39:7172"
-TS_ENV = "prd"
-START_DATE = "20220101"
-OUT_DIR = "data"
-MODEL_PATH = 'models/catboost_final_model.cbm'
-PARAMS_PATH = 'models/final_model_params.json'
-MIN_RETURN_THRESHOLD = 0.03
-
 # 全局变量
 model = None
 vol_multiplier = 0.89
@@ -74,7 +74,13 @@ if not TUSHARE_TOKEN:
 
 ts.set_token(TUSHARE_TOKEN)
 pro = ts.pro_api(env=TS_ENV, server=TS_SERVER)
-hist_fields = "trade_date,open,high,low,close,change,pct_chg,volume,amount"
+
+# 1. 基础行情字段 (包含交易状态)
+fields_daily = "ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,volume,amount,adj_factor,trade_status"
+# 2. 每日指标字段 (注意 XCSC 特有字段名: tot_mv, turn)
+fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
+# 3. 资金流向字段
+fields_moneyflow = "ts_code,trade_date,buy_sm_vol,sell_sm_vol,buy_md_vol,sell_md_vol,buy_lg_vol,sell_lg_vol,buy_elg_vol,sell_elg_vol,net_mf_vol,net_mf_amount"
 
 def init_model():
     """初始化预测模型"""
@@ -296,18 +302,145 @@ def generate_report():
                 f.write("今日无符合条件的交易机会，且无任何有效预测数据。")
 
 def get_hist(ts_code: str):
-    """获取历史数据，若数据不足则返回 None"""
+    """
+    获取全量数据：行情 + 每日指标 + 资金流向
+    并合并为一个 DataFrame
+    """
     try:
-        df = pro.daily(ts_code=ts_code, start_date=START_DATE, end_date="", fields=hist_fields)
+        # 1. 获取日线行情
+        df_daily = pro.daily(ts_code=ts_code, start_date=START_DATE, end_date="", fields=fields_daily)
+        if df_daily.empty:
+            return None
+            
+        # 2. 获取每日指标 (市值, 换手, PE/PB)
+        # 注意: 接口可能返回空，需处理
+        try:
+            df_basic = pro.daily_basic(ts_code=ts_code, start_date=START_DATE, end_date="", fields=fields_daily_basic)
+        except Exception:
+            df_basic = pd.DataFrame()
+            
+        # 3. 获取资金流向
+        try:
+            # moneyflow 有时在网络或服务端较慢，设置短超时保护
+            # xcsc_tushare 的 pro.moneyflow 本身无 timeout 参数，因此使用线程包装以避免阻塞
+            import concurrent.futures
+
+            def call_moneyflow():
+                return pro.moneyflow(ts_code=ts_code, start_date=START_DATE, end_date="", fields=fields_moneyflow)
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(call_moneyflow)
+                try:
+                    df_flow = future.result(timeout=10)  # 10秒超时
+                except Exception:
+                    future.cancel()
+                    df_flow = pd.DataFrame()
+        except Exception:
+            df_flow = pd.DataFrame()
+
+        # --- 数据合并 ---
+        # 以 daily 为主表，左连接其他表
+        df_merge = df_daily
+        
+        if not df_basic.empty:
+            df_merge = pd.merge(df_merge, df_basic, on=['ts_code', 'trade_date'], how='left')
+            
+        if not df_flow.empty:
+            df_merge = pd.merge(df_merge, df_flow, on=['ts_code', 'trade_date'], how='left')
+
+        # 统一按日期排序 (旧到新)
+        df_merge = df_merge.sort_values('trade_date').reset_index(drop=True)
+        # 确保日期格式
+        df_merge["trade_date"] = pd.to_datetime(df_merge["trade_date"], format="%Y%m%d")
+
+        # 在过滤停牌之前，尝试拉取并合并季报财务数据（安全对齐）
+        try:
+            from shared.financials import fetch_financials, align_financials_to_daily
+            df_fin = fetch_financials(pro, ts_code, start_date=START_DATE)
+            if df_fin is not None and not df_fin.empty:
+                aligned_fin = align_financials_to_daily(df_merge, df_fin)
+                # 合并到主表（按行对齐），保留财务字段
+                try:
+                    df_merge = pd.concat([df_merge.reset_index(drop=True), aligned_fin.reset_index(drop=True)], axis=1)
+                except Exception:
+                    pass
+        except Exception:
+            # 财务抓取非关键，失败时继续
+            pass
+
+        # 过滤停牌日并对刚复牌的股票做短期保护（防止复牌异常波动污染特征）
+        RESUME_SAFE_DAYS = 5
+        if 'trade_status' in df_merge.columns:
+            # 标记是否交易：XCSC 使用中文字段值（例如 '交易'、'停牌'、'XD' 等）
+            # 兼容常见值：'T','交易','TRADE','交易中','1'
+            valid_trade_vals = set(['T', '交易', 'TRADE', '交易中', '1'])
+            # 有些值可能包含空格或大小写差异，统一处理
+            def is_trade_val(x):
+                try:
+                    s = str(x).strip()
+                except Exception:
+                    return False
+                return s in valid_trade_vals or s == '交易'
+            df_merge['is_trade'] = df_merge['trade_status'].apply(is_trade_val)
+            # 将连续段分组
+            grp = (df_merge['is_trade'] != df_merge['is_trade'].shift(fill_value=df_merge['is_trade'].iloc[0])).cumsum()
+            df_merge['grp'] = grp
+            df_merge['days_since_resume'] = 0
+            grp_vals = df_merge.groupby('grp')['is_trade'].first().to_dict()
+            groups = sorted(grp_vals.items(), key=lambda x: x[0])
+            # iterate groups to find resume groups (group with is_trade==True and previous group is_trade==False)
+            for idx in range(1, len(groups)):
+                gid, val = groups[idx]
+                prev_gid, prev_val = groups[idx-1]
+                if val and not prev_val:
+                    # this group is a resume after suspension
+                    mask = df_merge['grp'] == gid
+                    n = mask.sum()
+                    # set 1..n
+                    df_merge.loc[mask, 'days_since_resume'] = list(range(1, n+1))
+            # 删除非交易日
+            df_merge = df_merge[df_merge['is_trade']]
+            # 删除复牌后短期数据
+            df_merge = df_merge[~((df_merge['days_since_resume'] > 0) & (df_merge['days_since_resume'] <= RESUME_SAFE_DAYS))]
+            # 清理辅助列
+            df_merge.drop(columns=['is_trade', 'grp', 'days_since_resume'], inplace=True, errors='ignore')
+
+        # --- 单位校正: 推断并统一量/额单位到“股”和人民币金额 ---
+        try:
+            if 'volume' in df_merge.columns and 'amount' in df_merge.columns and 'close' in df_merge.columns:
+                mask = df_merge['volume'].notna() & df_merge['amount'].notna() & df_merge['close'].notna() & (df_merge['close']>0) & (df_merge['volume']>0)
+                if mask.sum() >= 5:
+                    ratios = (df_merge.loc[mask, 'amount'] / (df_merge.loc[mask, 'volume'] * df_merge.loc[mask, 'close'] + 1e-12)).replace([float('inf'), -float('inf')], pd.NA).dropna()
+                    if len(ratios) >= 3:
+                        scale = float(ratios.median())
+                        if 1e-6 < scale < 1e6:
+                            # 标准化列
+                            df_merge['volume_shares'] = df_merge['volume'] * scale
+                            df_merge['amount_cny'] = df_merge['volume_shares'] * df_merge['close']
+                            df_merge['volume_scale_inferred'] = scale
+                            # moneyflow 金额列调整
+                            if 'net_mf_amount' in df_merge.columns and df_merge['net_mf_amount'].notna().sum() > 0:
+                                orig_med = df_merge.loc[mask, 'amount'].median()
+                                new_med = df_merge.loc[mask, 'amount_cny'].median()
+                                if orig_med and abs(orig_med) > 0:
+                                    amt_factor = new_med / orig_med
+                                    df_merge['net_mf_amount_cny'] = df_merge['net_mf_amount'] * amt_factor
+                                else:
+                                    df_merge['net_mf_amount_cny'] = df_merge['net_mf_amount']
+        except Exception:
+            # 单个票的归一化失败不应中断整个流程
+            pass
+
+        # 仅进行降精度处理，不添加任何额外特征，保持数据纯洁
+        df_merge = downcast(df_merge)
+
+        if len(df_merge) > 21:
+            return ts_code, df_merge
+        else:
+            return None
+
     except Exception as e:
         raise e
-        
-    df = df.iloc[::-1].reset_index(drop=True)
-    if len(df) > 21:  # 至少一个月的数据
-        df["trade_date"] = pd.to_datetime(df["trade_date"], format="%Y%m%d")
-        return ts_code, df
-    else:
-        return None
 
 def list_main_board_cs():
     """获取主板已上市股票列表"""
@@ -386,9 +519,8 @@ def main():
                 if model_enabled and model is not None:
                     # 使用副本进行预测，不污染原始数据
                     predict_stock(code, df.copy())
-                
-                # 仅进行降精度处理，不添加任何特征，保持数据纯洁
-                df = downcast(df)
+
+                # 保存（get_hist 已经完成归一化与 downcast）
                 out_file = os.path.join(OUT_DIR, f"{code}.parquet")
                 df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
             except Exception as e:

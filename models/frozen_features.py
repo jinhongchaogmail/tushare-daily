@@ -159,5 +159,23 @@ def apply_technical_indicators(df):
     if 'SMA_5' in df.columns: df['ma5'] = df['SMA_5']
     if 'SMA_10' in df.columns: df['ma10'] = df['SMA_10']
     if 'SMA_20' in df.columns: df['ma20'] = df['SMA_20']
+
+    # 兼容层: 为旧模型创建期望的特征名
+    if 'volatility_10d' in df.columns and 'volatility_10' not in df.columns:
+        df['volatility_10'] = df['volatility_10d']
+    if 'volatility_10' in df.columns and 'vol_ma5' not in df.columns:
+        df['vol_ma5'] = df['volatility_10'].rolling(5, min_periods=1).mean()
+    if 'momentum_5' not in df.columns:
+        df['momentum_5'] = df['close'].pct_change(5)
+    if 'RSI_14' in df.columns and 'rsi14' not in df.columns:
+        df['rsi14'] = df['RSI_14']
+    if 'MACD_12_26_9' in df.columns and 'macd' not in df.columns:
+        df['macd'] = df['MACD_12_26_9']
+    if 'MACDs_12_26_9' in df.columns and 'macd_signal' not in df.columns:
+        df['macd_signal'] = df['MACDs_12_26_9']
+    if 'pct_chg' in df.columns and 'rank_pct_chg' not in df.columns:
+        df['rank_pct_chg'] = df['pct_chg'].rolling(60, min_periods=5).apply(
+            lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
+        )
     
     return df

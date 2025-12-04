@@ -737,9 +737,14 @@ def run_optuna_study(combined_df, base_save_path):
         exclude = {
             'target_class_3', 'future_return_5d',
             # 移除原始价格/成交量数据，迫使模型依赖指标
-            'open', 'high', 'low', 'close', 'volume', 'amount',
+            'open', 'high', 'low', 'close', 'volume', 'amount', 'adj_factor',
             # 排除辅助列 (v17: volatility_factor 已移除，作为特征加入训练)
-            'stock_code_encoded'
+            'stock_code_encoded',
+            # (v33) 排除 daily_basic 和 moneyflow 的原始绝对值字段，使用衍生特征
+            'tot_mv', 'mv', 'turn', 'pe', 'pe_ttm', 'pb_new', 'free_turnover', 'high_52w', 'low_52w',
+            'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol', 
+            'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',
+            'net_mf_vol', 'net_mf_amount'
         }
         # 排除所有以 'future_' 或 'shift' 开头的 (保持原逻辑)
         exclude |= {c for c in df.columns if c.lower().startswith('future_') or 'shift' in c.lower() or c in exclude}
@@ -792,7 +797,21 @@ def run_optuna_study(combined_df, base_save_path):
         'volatility_60d': '波动率(60日)',
         'rsi_vol_20': 'RSI波动率',
         'bias_vol_20': '乖离率波动率',
-        'macd_h_vol_20': 'MACD柱波动率'
+        'macd_h_vol_20': 'MACD柱波动率',
+        # (v33 新增)
+        'pe_rank': 'PE分位数',
+        'pb_rank': 'PB分位数',
+        'log_mv': '对数市值',
+        'turn_ma5': '5日换手率',
+        'turn_volatility': '换手率波动',
+        'free_turn_ma5': '5日自由换手',
+        'main_force_net_inflow': '主力净流入',
+        'main_force_ratio': '主力参与度',
+        'retail_sentiment': '散户情绪',
+        'mid_force_net_inflow': '中单净流入',
+        'mid_force_ratio': '中单参与度',
+        'net_mf_amt_ratio': '净流入金额占比',
+        'price_position_52w': '52周价格位置'
     }
 
     feature_columns = get_feature_columns(train_data_raw)
