@@ -78,7 +78,8 @@ pro = ts.pro_api(env=TS_ENV, server=TS_SERVER)
 # 1. 基础行情字段 (包含交易状态)
 fields_daily = "ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,volume,amount,adj_factor,trade_status"
 # 2. 每日指标字段 (注意 XCSC 特有字段名: tot_mv, turn)
-fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
+# fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
+fields_daily_basic = None # 暂时关闭 daily_basic 下载，以节省时间
 # 3. 资金流向字段
 fields_moneyflow = "ts_code,trade_date,buy_sm_vol,sell_sm_vol,buy_md_vol,sell_md_vol,buy_lg_vol,sell_lg_vol,buy_elg_vol,sell_elg_vol,net_mf_vol,net_mf_amount"
 # 4. (v37 新增) 融资融券字段
@@ -316,10 +317,10 @@ def get_hist(ts_code: str):
             
         # 2. 获取每日指标 (市值, 换手, PE/PB)
         # 注意: 接口可能返回空，需处理
-        try:
-            df_basic = pro.daily_basic(ts_code=ts_code, start_date=START_DATE, end_date="", fields=fields_daily_basic)
-        except Exception:
-            df_basic = pd.DataFrame()
+        # try:
+        #     df_basic = pro.daily_basic(ts_code=ts_code, start_date=START_DATE, end_date="", fields=fields_daily_basic)
+        # except Exception:
+        df_basic = pd.DataFrame()
             
         # 3. 获取资金流向
         try:
@@ -851,6 +852,14 @@ def main():
     # 生成预测报告（可选，SKIP_PREDICTIONS=1 时跳过）
     if SKIP_PREDICTIONS:
         print("ℹ️ SKIP_PREDICTIONS=1，已跳过预测与报告生成", flush=True)
+        # 生成占位报告，防止 GitHub Actions 报错
+        report_path = "reports/strategy_report.md"
+        os.makedirs(os.path.dirname(report_path), exist_ok=True)
+        with open(report_path, "w") as f:
+            f.write("# 每日量化策略报告 (已跳过)\n\n")
+            f.write(f"**日期**: {datetime.now().strftime('%Y-%m-%d')}\n\n")
+            f.write("ℹ️ `SKIP_PREDICTIONS=1` 已设置，本次运行跳过了模型预测和详细报告生成。\n")
+        print(f"✅ 已生成占位报告: {report_path}", flush=True)
     else:
         if model_enabled and model is not None:
             generate_report()

@@ -123,6 +123,8 @@ def fetch_batch(pro, ts_codes, start_date: str, fields_daily: str, fields_daily_
 
     # --- 2. daily_basic, moneyflow, margin_detail 需要逐只获取 (并行) ---
     def fetch_single_basic(code):
+        if not fields_daily_basic:
+            return (code, 'daily_basic', pd.DataFrame())
         try:
             df = pro.daily_basic(ts_code=code, start_date=start_date, end_date="", fields=fields_daily_basic)
             return (code, 'daily_basic', df if df is not None else pd.DataFrame())
