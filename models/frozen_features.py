@@ -120,6 +120,63 @@ def apply_technical_indicators(df):
     # 计算连续上涨天数 (下跌则重置为0)
     df['consecutive_up_days'] = s * (s.groupby((s != s.shift()).cumsum()).cumcount() + 1)
 
+    # --- (v33 新增: 基本面与资金流特征) ---
+    # 1. 估值因子 (需 daily_basic 数据)
+    if 'pe_ttm' in df.columns:
+        # PE 历史分位数 (60日)
+        df['pe_rank'] = df['pe_ttm'].rolling(60, min_periods=20).apply(
+            lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
+        )
+    
+    if 'pb_new' in df.columns:
+        df['pb_rank'] = df['pb_new'].rolling(60, min_periods=20).apply(
+            lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
+        )
+
+    # 2. 市值因子
+    if 'tot_mv' in df.columns:
+        df['log_mv'] = np.log(df['tot_mv'] + 1e-8)
+        
+    # 3. 换手率因子
+    if 'turn' in df.columns:
+        df['turn_ma5'] = df['turn'].rolling(5).mean()
+        df['turn_volatility'] = df['turn'].rolling(20).std()
+    
+    # (v34 补充) 自由换手率 - 更真实的流动性
+    if 'free_turnover' in df.columns:
+        df['free_turn_ma5'] = df['free_turnover'].rolling(5).mean()
+        
+    # 4. 资金流向因子 (需 moneyflow 数据)
+    if 'buy_elg_vol' in df.columns and 'sell_elg_vol' in df.columns:
+        # 主力净流入 (大单+超大单)
+        main_in = df['buy_lg_vol'] + df['buy_elg_vol']
+        main_out = df['sell_lg_vol'] + df['sell_elg_vol']
+        df['main_force_net_inflow'] = main_in - main_out
+        
+        # 主力资金占比 (假设单位一致)
+        df['main_force_ratio'] = (main_in + main_out) / (df['volume'] + 1e-8)
+        
+        # 散户情绪 (小单净买入占比)
+        retail_net = df['buy_sm_vol'] - df['sell_sm_vol']
+        df['retail_sentiment'] = retail_net / (df['volume'] + 1e-8)
+
+        # --- 中单 (mid orders) 特征 (v34 新增) ---
+        # 中单常被视为跟风盘或中户行为，能补充主力/散户之间的中间层资金动向
+        if 'buy_md_vol' in df.columns and 'sell_md_vol' in df.columns:
+            mid_in = df['buy_md_vol']
+            mid_out = df['sell_md_vol']
+            df['mid_force_net_inflow'] = mid_in - mid_out
+            df['mid_force_ratio'] = (mid_in + mid_out) / (df['volume'] + 1e-8)
+
+    # (v34 补充) 资金流向金额 - 区分“量”与“钱”
+    if 'net_mf_amount' in df.columns:
+        # 归一化金额 (除以成交额)，避免高价股数值过大
+        df['net_mf_amt_ratio'] = df['net_mf_amount'] / (df['amount'] + 1e-8)
+
+    # 5. 价格位置 (52周)
+    if 'high_52w' in df.columns and 'low_52w' in df.columns:
+        df['price_position_52w'] = (df['close'] - df['low_52w']) / (df['high_52w'] - df['low_52w'] + 1e-8)
+
     # --- (v32 新增: 统一补全缺失特征) ---
     # 将分散在 train.py 和 daily_run.py 中的特征逻辑统一至此
     
@@ -139,6 +196,19 @@ def apply_technical_indicators(df):
     # 注意: train.py 中有更复杂的 excess_return 计算 (减去大盘)，这里仅作为 fallback
     if 'excess_return' not in df.columns:
         df['excess_return'] = df['close'].pct_change()
+
+    # --- (v35 新增: 基于季报的财务特征) ---
+    # 如果日表中包含对齐后的季报字段（如 total_revenue, n_income_attr_p, basic_eps）
+    if 'total_revenue' in df.columns and 'n_income_attr_p' in df.columns:
+        # 同比营收增长率: (当前 - 同期上一年) / 同期上一年
+        df['total_revenue_yoy'] = df['total_revenue'] / df['total_revenue'].shift(252) - 1
+        # 同比净利润增长率
+        df['net_profit_yoy'] = df['n_income_attr_p'] / df['n_income_attr_p'].shift(252) - 1
+        # 净利率
+        df['net_profit_margin'] = df['n_income_attr_p'] / (df['total_revenue'] + 1e-8)
+        # 每股收益变化
+        if 'basic_eps' in df.columns:
+            df['basic_eps_yoy'] = df['basic_eps'] / df['basic_eps'].shift(252) - 1
 
     # --- (v25) 删除冗余/低重要性列 ---
     # 修复: pandas_ta 可能生成小写列名 (ma5, ma10) 导致无法删除
@@ -160,19 +230,30 @@ def apply_technical_indicators(df):
     if 'SMA_10' in df.columns: df['ma10'] = df['SMA_10']
     if 'SMA_20' in df.columns: df['ma20'] = df['SMA_20']
 
-    # 兼容层: 为旧模型创建期望的特征名
+    # --- 兼容层: 为旧模型创建期望的特征名（防止命名不一致导致缺失特征） ---
+    # volatility_10: 对应 10 日波动率
     if 'volatility_10d' in df.columns and 'volatility_10' not in df.columns:
         df['volatility_10'] = df['volatility_10d']
+
+    # vol_ma5: volatility_10 的 5 日均值（模型训练时的约定）
     if 'volatility_10' in df.columns and 'vol_ma5' not in df.columns:
         df['vol_ma5'] = df['volatility_10'].rolling(5, min_periods=1).mean()
+
+    # momentum_5: 5日动量（收盘价相对 5 日前的变化）
     if 'momentum_5' not in df.columns:
         df['momentum_5'] = df['close'].pct_change(5)
+
+    # rsi14 / rsi14 小写兼容
     if 'RSI_14' in df.columns and 'rsi14' not in df.columns:
         df['rsi14'] = df['RSI_14']
+
+    # macd / macd_signal: 将 pandas_ta 的命名映射为模型期望
     if 'MACD_12_26_9' in df.columns and 'macd' not in df.columns:
         df['macd'] = df['MACD_12_26_9']
     if 'MACDs_12_26_9' in df.columns and 'macd_signal' not in df.columns:
         df['macd_signal'] = df['MACDs_12_26_9']
+
+    # rank_pct_chg: pct_chg 在近60日的分位数（与 rsi_percentile_60 类似的构造）
     if 'pct_chg' in df.columns and 'rank_pct_chg' not in df.columns:
         df['rank_pct_chg'] = df['pct_chg'].rolling(60, min_periods=5).apply(
             lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
