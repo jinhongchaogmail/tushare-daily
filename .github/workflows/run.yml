@@ -35,6 +35,7 @@ jobs:
       - name: 🚀 Run Download & Predict Script
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          SKIP_PREDICTIONS: "1"  # 临时跳过预测以加速下载（重新训练模型后可移除）
         run: python daily_run.py
 
       - name: 📤 Upload Data Artifact
