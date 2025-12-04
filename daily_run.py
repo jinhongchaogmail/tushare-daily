@@ -459,8 +459,115 @@ def downcast(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].astype("float32")
     return df
 
+
+def merge_and_postprocess(ts_code: str, df_daily, df_basic, df_flow):
+    """
+    统一的数据合并与后处理逻辑：
+    1. 合并 daily, daily_basic, moneyflow
+    2. 对齐财务数据
+    3. 过滤停牌日与复牌保护期
+    4. 单位归一化
+    5. 降精度
+    返回处理后的 DataFrame，若数据不足则返回 None
+    """
+    if df_daily is None or df_daily.empty:
+        return None
+
+    df_merge = df_daily
+    merge_keys = ['ts_code', 'trade_date']
+    base_cols = set(df_merge.columns)
+    
+    if df_basic is not None and not df_basic.empty:
+        # 去除与 df_daily 重复的列 (除了 merge keys)
+        dup_cols = [c for c in df_basic.columns if c in base_cols and c not in merge_keys]
+        if dup_cols:
+            df_basic = df_basic.drop(columns=dup_cols)
+        df_merge = pd.merge(df_merge, df_basic, on=merge_keys, how='left')
+        base_cols = set(df_merge.columns)
+    
+    if df_flow is not None and not df_flow.empty:
+        # 去除与已合并数据重复的列 (除了 merge keys)
+        dup_cols = [c for c in df_flow.columns if c in base_cols and c not in merge_keys]
+        if dup_cols:
+            df_flow = df_flow.drop(columns=dup_cols)
+        df_merge = pd.merge(df_merge, df_flow, on=merge_keys, how='left')
+
+    df_merge = df_merge.sort_values('trade_date').reset_index(drop=True)
+    try:
+        df_merge['trade_date'] = pd.to_datetime(df_merge['trade_date'], format="%Y%m%d")
+    except Exception:
+        pass
+
+    # 财务数据对齐（可通过 SKIP_FINANCIALS=1 跳过以加速）
+    if os.environ.get('SKIP_FINANCIALS', '0') != '1':
+        try:
+            from shared.financials import fetch_financials, align_financials_to_daily
+            df_fin = fetch_financials(pro, ts_code, start_date=START_DATE)
+            if df_fin is not None and not df_fin.empty:
+                aligned_fin = align_financials_to_daily(df_merge, df_fin)
+                try:
+                    df_merge = pd.concat([df_merge.reset_index(drop=True), aligned_fin.reset_index(drop=True)], axis=1)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # 停牌过滤与复牌保护
+    RESUME_SAFE_DAYS = 5
+    if 'trade_status' in df_merge.columns:
+        valid_trade_vals = {'T', '交易', 'TRADE', '交易中', '1'}
+        def is_trade_val(x):
+            try:
+                return str(x).strip() in valid_trade_vals
+            except Exception:
+                return False
+        df_merge['is_trade'] = df_merge['trade_status'].apply(is_trade_val)
+        grp = (df_merge['is_trade'] != df_merge['is_trade'].shift(fill_value=df_merge['is_trade'].iloc[0])).cumsum()
+        df_merge['grp'] = grp
+        df_merge['days_since_resume'] = 0
+        grp_vals = df_merge.groupby('grp')['is_trade'].first().to_dict()
+        groups = sorted(grp_vals.items(), key=lambda x: x[0])
+        for idx in range(1, len(groups)):
+            gid, val = groups[idx]
+            prev_gid, prev_val = groups[idx-1]
+            if val and not prev_val:
+                mask = df_merge['grp'] == gid
+                df_merge.loc[mask, 'days_since_resume'] = list(range(1, mask.sum()+1))
+        df_merge = df_merge[df_merge['is_trade']]
+        df_merge = df_merge[~((df_merge['days_since_resume'] > 0) & (df_merge['days_since_resume'] <= RESUME_SAFE_DAYS))]
+        df_merge.drop(columns=['is_trade', 'grp', 'days_since_resume'], inplace=True, errors='ignore')
+
+    # 单位归一化
+    try:
+        if 'volume' in df_merge.columns and 'amount' in df_merge.columns and 'close' in df_merge.columns:
+            mask = df_merge['volume'].notna() & df_merge['amount'].notna() & df_merge['close'].notna() & (df_merge['close']>0) & (df_merge['volume']>0)
+            if mask.sum() >= 5:
+                ratios = (df_merge.loc[mask, 'amount'] / (df_merge.loc[mask, 'volume'] * df_merge.loc[mask, 'close'] + 1e-12)).replace([float('inf'), -float('inf')], pd.NA).dropna()
+                if len(ratios) >= 3:
+                    scale = float(ratios.median())
+                    if 1e-6 < scale < 1e6:
+                        df_merge['volume_shares'] = df_merge['volume'] * scale
+                        df_merge['amount_cny'] = df_merge['volume_shares'] * df_merge['close']
+                        df_merge['volume_scale_inferred'] = scale
+                        if 'net_mf_amount' in df_merge.columns and df_merge['net_mf_amount'].notna().sum() > 0:
+                            orig_med = df_merge.loc[mask, 'amount'].median()
+                            new_med = df_merge.loc[mask, 'amount_cny'].median()
+                            if orig_med and abs(orig_med) > 0:
+                                df_merge['net_mf_amount_cny'] = df_merge['net_mf_amount'] * (new_med / orig_med)
+                            else:
+                                df_merge['net_mf_amount_cny'] = df_merge['net_mf_amount']
+    except Exception:
+        pass
+
+    df_merge = downcast(df_merge)
+    return df_merge if len(df_merge) > 21 else None
+
+
 def main():
-    print("🚀 启动数据下载与预测脚本 (单线程模式)...", flush=True)
+    # 并行处理配置
+    parallel_workers = int(os.environ.get('PARALLEL_WORKERS', '2'))
+    skip_fin = os.environ.get('SKIP_FINANCIALS', '0') == '1'
+    print(f"🚀 启动数据下载与预测脚本 (并行={parallel_workers}, 跳过财务={skip_fin})...", flush=True)
     os.makedirs(OUT_DIR, exist_ok=True)
     
     # 初始化模型（如果可用）
@@ -477,55 +584,122 @@ def main():
         print(f"❌ 获取股票列表失败: {e}", flush=True)
         return
 
-    print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理...", flush=True)
-    
-    # 全量下载模式：默认处理所有符合条件的股票
-    print("⚠️ 全量下载模式：处理所有符合条件的股票", flush=True)
+    # 支持通过环境变量限制处理的股票数量，便于本地快速 smoke test
+    max_tickers = int(os.environ.get('MAX_TICKERS', '20'))
+    if max_tickers and max_tickers > 0:
+        ts_codes = ts_codes.head(max_tickers)
+    print(f"✅ 获取到 {len(ts_codes)} 只股票，开始处理... (MAX_TICKERS={max_tickers})", flush=True)
+    print("⚠️ 若需处理全部股票，请设置 MAX_TICKERS=0 或移除此限制", flush=True)
     
     total = len(ts_codes)
     skipped = []
+    batch_size = 10  # 每批下载 10 支股票
+
+    # 导入批量下载函数
+    from shared.downloader import fetch_batch
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    tickers = list(ts_codes['ts_code'].values)
     
-    for idx, row in ts_codes.iterrows():
-        ts_code = row["ts_code"]
+    total_download_time = 0.0
+    total_process_time = 0.0
+    
+    # 定义单只股票的处理函数
+    def process_one(code, daily_map, basic_map, flow_map):
+        df_daily = daily_map.get(code)
+        if df_daily is None or (hasattr(df_daily, 'empty') and df_daily.empty):
+            return (code, False, 'no_data')
         
-        # 进度打印
-        if idx % 50 == 0:
-            print(f"[{idx}/{total}] 正在处理: {ts_code}", flush=True)
+        df_basic = basic_map.get(code, pd.DataFrame())
+        df_flow = flow_map.get(code, pd.DataFrame())
+        
+        df_merge = merge_and_postprocess(code, df_daily, df_basic, df_flow)
+        if df_merge is None:
+            return (code, False, 'postprocess_fail')
+        
+        try:
+            if model_enabled and model is not None:
+                predict_stock(code, df_merge.copy())
+            out_file = os.path.join(OUT_DIR, f"{code}.parquet")
+            df_merge.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
+            return (code, True, None)
+        except Exception as e:
+            return (code, False, str(e))
+    
+    # 异步下载函数
+    def download_batch(chunk):
+        return fetch_batch(pro, chunk, START_DATE, fields_daily, fields_daily_basic, fields_moneyflow)
+    
+    # 使用流水线：下载和处理异步并行
+    # 1个线程用于预取下一批，其余线程用于处理当前批
+    batches = [tickers[i:i+batch_size] for i in range(0, len(tickers), batch_size)]
+    
+    with ThreadPoolExecutor(max_workers=parallel_workers + 1) as executor:
+        # 预取第一批
+        prefetch_future = executor.submit(download_batch, batches[0]) if batches else None
+        
+        for batch_idx, chunk in enumerate(batches):
+            print(f"[{batch_idx * batch_size}/{total}] 处理 {len(chunk)} 支股票...", flush=True)
             
-        i = None
-        retry = 0
-        max_retry = 3
-
-        while i is None and retry < max_retry:
             try:
-                i = get_hist(ts_code)
-                if i is None:
-                    skipped.append(ts_code)
-                    break
-            except requests.exceptions.ConnectionError:
-                print(f"⚠️ {ts_code} 网络错误，3秒后重试", flush=True)
-                time.sleep(3)
-                retry += 1
-                continue
+                # 等待当前批次的下载完成
+                t0 = time.time()
+                if prefetch_future:
+                    fetched = prefetch_future.result()
+                else:
+                    fetched = download_batch(chunk)
+                download_time = time.time() - t0
+                total_download_time += download_time
+                
+                # 立即启动下一批的预取（如果有）
+                next_batch_idx = batch_idx + 1
+                if next_batch_idx < len(batches):
+                    prefetch_future = executor.submit(download_batch, batches[next_batch_idx])
+                else:
+                    prefetch_future = None
+                
+                print(f"    ⏱️ 下载耗时: {download_time:.2f}s", flush=True)
+                
+                daily_map = fetched.get('daily', {})
+                basic_map = fetched.get('daily_basic', {})
+                flow_map = fetched.get('moneyflow', {})
+                
+                # 并行处理本批股票
+                t1 = time.time()
+                process_futures = [executor.submit(process_one, code, daily_map, basic_map, flow_map) for code in chunk]
+                for fut in as_completed(process_futures):
+                    code, success, err = fut.result()
+                    if not success:
+                        if err and err != 'no_data' and err != 'postprocess_fail':
+                            print(f"❌ {code} 处理出错: {err}", flush=True)
+                        skipped.append(code)
+                
+                process_time = time.time() - t1
+                total_process_time += process_time
+                print(f"    ⏱️ 处理耗时: {process_time:.2f}s (本批共 {download_time + process_time:.2f}s)", flush=True)
             except Exception as e:
-                print(f"❌ {ts_code} 出错: {e}，跳过", flush=True)
-                skipped.append(ts_code)
-                break
+                print(f"❌ 批量下载失败: {e}，回退到逐只下载", flush=True)
+                # 回退：逐只下载
+                for code in chunk:
+                    try:
+                        result = get_hist(code)
+                        if result is None:
+                            skipped.append(code)
+                            continue
+                        _, df = result
+                        if model_enabled and model is not None:
+                            predict_stock(code, df.copy())
+                        out_file = os.path.join(OUT_DIR, f"{code}.parquet")
+                        df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
+                    except Exception as ee:
+                        print(f"❌ {code} 回退下载失败: {ee}", flush=True)
+                        skipped.append(code)
 
-        if i is not None:
-            code, df = i
-            try:
-                # 预测（在保存前）
-                if model_enabled and model is not None:
-                    # 使用副本进行预测，不污染原始数据
-                    predict_stock(code, df.copy())
-
-                # 保存（get_hist 已经完成归一化与 downcast）
-                out_file = os.path.join(OUT_DIR, f"{code}.parquet")
-                df.to_parquet(out_file, engine="pyarrow", compression="zstd", compression_level=3, index=False)
-            except Exception as e:
-                print(f"❌ {ts_code} 处理数据出错: {e}", flush=True)
-                skipped.append(ts_code)
+    # 输出总耗时统计
+    print(f"\n📊 耗时统计:", flush=True)
+    print(f"    下载总耗时: {total_download_time:.2f}s", flush=True)
+    print(f"    处理总耗时: {total_process_time:.2f}s", flush=True)
+    print(f"    合计: {total_download_time + total_process_time:.2f}s", flush=True)
 
     if skipped:
         pd.DataFrame(skipped, columns=["ts_code"]).to_csv("skipped.csv", index=False)

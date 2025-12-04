@@ -210,50 +210,32 @@ def apply_technical_indicators(df):
         if 'basic_eps' in df.columns:
             df['basic_eps_yoy'] = df['basic_eps'] / df['basic_eps'].shift(252) - 1
 
-    # --- (v25) 删除冗余/低重要性列 ---
-    # 修复: pandas_ta 可能生成小写列名 (ma5, ma10) 导致无法删除
-    # 显式添加常见的小写变体
-    # cols_to_drop = [
-    #     'SMA_5', 'SMA_10', 'SMA_20',
-    #     'ma5', 'ma10', 'ma20', 'SMA_5.0', 'SMA_10.0', 'SMA_20.0', # 常见变体
-    #     'BBU_5_2.0_2.0', 'BBL_5_2.0_2.0', 'BBM_5_2.0_2.0', 'BBP_5_2.0_2.0',
-    #     'MACD_12_26_9', 'MACDs_12_26_9'
-    # ]
+    # --- (v36 优化) 精简特征，删除冗余别名 ---
+    # 
+    # 设计原则:
+    # 1. 不创建与原始特征完全相同的别名（如 rsi14=RSI_14），避免模型学习冗余
+    # 2. 只保留有独立信息增益的衍生特征
+    # 3. 使用 pandas_ta 的原始命名（SMA_5, RSI_14, MACD_12_26_9 等）
+    #
+    # 已删除的冗余别名（v36）:
+    # - ma5/ma10/ma20: 与 SMA_5/SMA_10/SMA_20 完全相同
+    # - volatility_10: 与 volatility_10d 完全相同
+    # - rsi14: 与 RSI_14 完全相同
+    # - macd: 与 MACD_12_26_9 完全相同
+    # - macd_signal: 与 MACDs_12_26_9 完全相同
+
+    # --- 保留有价值的衍生特征 ---
     
-    # 动态查找并删除所有以 SMA_ 或 ma (后跟数字) 开头的列，如果它们不在保留列表中
-    # 这里简单起见，直接使用扩展的列表
-    # existing_cols_to_drop = [c for c in cols_to_drop if c in df.columns]
-    # df.drop(columns=existing_cols_to_drop, inplace=True, errors='ignore')
-    
-    # 兼容性修复: 重命名 pandas_ta 生成的列以匹配旧模型 (ma5, ma10, ma20)
-    if 'SMA_5' in df.columns: df['ma5'] = df['SMA_5']
-    if 'SMA_10' in df.columns: df['ma10'] = df['SMA_10']
-    if 'SMA_20' in df.columns: df['ma20'] = df['SMA_20']
+    # vol_ma5: 波动率的平滑版本（有独立信息，重要性 2.53）
+    if 'volatility_10d' in df.columns and 'vol_ma5' not in df.columns:
+        df['vol_ma5'] = df['volatility_10d'].rolling(5, min_periods=1).mean()
 
-    # --- 兼容层: 为旧模型创建期望的特征名（防止命名不一致导致缺失特征） ---
-    # volatility_10: 对应 10 日波动率
-    if 'volatility_10d' in df.columns and 'volatility_10' not in df.columns:
-        df['volatility_10'] = df['volatility_10d']
-
-    # vol_ma5: volatility_10 的 5 日均值（模型训练时的约定）
-    if 'volatility_10' in df.columns and 'vol_ma5' not in df.columns:
-        df['vol_ma5'] = df['volatility_10'].rolling(5, min_periods=1).mean()
-
-    # momentum_5: 5日动量（收盘价相对 5 日前的变化）
+    # momentum_5: 5日动量（与 return_5d 计算方式相同，但命名更直观）
+    # 注意：如果模型已有 return_5d，可考虑删除此特征
     if 'momentum_5' not in df.columns:
         df['momentum_5'] = df['close'].pct_change(5)
 
-    # rsi14 / rsi14 小写兼容
-    if 'RSI_14' in df.columns and 'rsi14' not in df.columns:
-        df['rsi14'] = df['RSI_14']
-
-    # macd / macd_signal: 将 pandas_ta 的命名映射为模型期望
-    if 'MACD_12_26_9' in df.columns and 'macd' not in df.columns:
-        df['macd'] = df['MACD_12_26_9']
-    if 'MACDs_12_26_9' in df.columns and 'macd_signal' not in df.columns:
-        df['macd_signal'] = df['MACDs_12_26_9']
-
-    # rank_pct_chg: pct_chg 在近60日的分位数（与 rsi_percentile_60 类似的构造）
+    # rank_pct_chg: 当日涨幅在近60日的分位数（有独立信息，重要性 1.58）
     if 'pct_chg' in df.columns and 'rank_pct_chg' not in df.columns:
         df['rank_pct_chg'] = df['pct_chg'].rolling(60, min_periods=5).apply(
             lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
