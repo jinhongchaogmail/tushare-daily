@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import requests
 import xcsc_tushare as ts
-from datetime import datetime
+from datetime import datetime, timedelta
 
 TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")
 TS_SERVER = "http://116.128.206.39:7172"
@@ -81,6 +81,8 @@ fields_daily = "ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,
 fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
 # 3. 资金流向字段
 fields_moneyflow = "ts_code,trade_date,buy_sm_vol,sell_sm_vol,buy_md_vol,sell_md_vol,buy_lg_vol,sell_lg_vol,buy_elg_vol,sell_elg_vol,net_mf_vol,net_mf_amount"
+# 4. (v37 新增) 融资融券字段
+fields_margin = "ts_code,trade_date,rzye,rqye,rzmre,rzche,rqmcl,rqchl,rzrqye"
 
 def init_model():
     """初始化预测模型"""
@@ -460,15 +462,21 @@ def downcast(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def merge_and_postprocess(ts_code: str, df_daily, df_basic, df_flow):
+def merge_and_postprocess(ts_code: str, df_daily, df_basic, df_flow, df_margin=None, df_top_list=None, df_block_trade=None):
     """
     统一的数据合并与后处理逻辑：
-    1. 合并 daily, daily_basic, moneyflow
-    2. 对齐财务数据
-    3. 过滤停牌日与复牌保护期
-    4. 单位归一化
-    5. 降精度
+    1. 合并 daily, daily_basic, moneyflow, margin_detail
+    2. (v37) 合并龙虎榜、大宗交易数据
+    3. 对齐财务数据
+    4. 过滤停牌日与复牌保护期
+    5. 单位归一化
+    6. 降精度
     返回处理后的 DataFrame，若数据不足则返回 None
+    
+    v37 更新: 
+    - 新增 df_margin 参数 (融资融券数据)
+    - 新增 df_top_list 参数 (龙虎榜数据，已按 ts_code 过滤)
+    - 新增 df_block_trade 参数 (大宗交易数据，已按 ts_code 过滤)
     """
     if df_daily is None or df_daily.empty:
         return None
@@ -491,6 +499,72 @@ def merge_and_postprocess(ts_code: str, df_daily, df_basic, df_flow):
         if dup_cols:
             df_flow = df_flow.drop(columns=dup_cols)
         df_merge = pd.merge(df_merge, df_flow, on=merge_keys, how='left')
+        base_cols = set(df_merge.columns)
+    
+    # (v37 新增) 合并融资融券数据
+    if df_margin is not None and not df_margin.empty:
+        dup_cols = [c for c in df_margin.columns if c in base_cols and c not in merge_keys]
+        if dup_cols:
+            df_margin = df_margin.drop(columns=dup_cols)
+        df_merge = pd.merge(df_merge, df_margin, on=merge_keys, how='left')
+        base_cols = set(df_merge.columns)
+    
+    # (v37 新增) 合并龙虎榜数据
+    if df_top_list is not None and not df_top_list.empty:
+        # 龙虎榜关键字段 (来自 top_list 表):
+        # - l_buy: 龙虎榜买入额
+        # - l_sell: 龙虎榜卖出额
+        # - net_amount: 净买入额
+        # 先聚合同一天的多条记录 (同一只股可能多次上榜)
+        agg_dict = {'net_amount': 'sum'}
+        if 'l_buy' in df_top_list.columns:
+            agg_dict['l_buy'] = 'sum'
+        if 'l_sell' in df_top_list.columns:
+            agg_dict['l_sell'] = 'sum'
+        
+        top_agg = df_top_list.groupby(['ts_code', 'trade_date']).agg(agg_dict).reset_index()
+        
+        # 重命名列以避免与其他数据源冲突
+        rename_map = {'net_amount': 'top_net_amount'}
+        if 'l_buy' in top_agg.columns:
+            rename_map['l_buy'] = 'top_buy_amount'
+        if 'l_sell' in top_agg.columns:
+            rename_map['l_sell'] = 'top_sell_amount'
+        top_agg.rename(columns=rename_map, inplace=True)
+        
+        # 添加上榜次数
+        top_count = df_top_list.groupby(['ts_code', 'trade_date']).size().reset_index(name='top_count')
+        top_agg = pd.merge(top_agg, top_count, on=['ts_code', 'trade_date'], how='left')
+        
+        dup_cols = [c for c in top_agg.columns if c in base_cols and c not in merge_keys]
+        if dup_cols:
+            top_agg = top_agg.drop(columns=dup_cols)
+        df_merge = pd.merge(df_merge, top_agg, on=merge_keys, how='left')
+        base_cols = set(df_merge.columns)
+    
+    # (v37 新增) 合并大宗交易数据
+    if df_block_trade is not None and not df_block_trade.empty:
+        # 大宗交易关键字段: vol, amount, price
+        # 先聚合同一天的多笔大宗交易
+        block_agg = df_block_trade.groupby(['ts_code', 'trade_date']).agg({
+            'vol': 'sum',     # 成交量
+            'amount': 'sum',  # 成交额
+            'price': 'mean'   # 成交均价
+        }).reset_index()
+        block_agg.rename(columns={
+            'vol': 'block_vol',
+            'amount': 'block_amount',
+            'price': 'block_avg_price'
+        }, inplace=True)
+        
+        # 添加大宗交易笔数
+        block_count = df_block_trade.groupby(['ts_code', 'trade_date']).size().reset_index(name='block_count')
+        block_agg = pd.merge(block_agg, block_count, on=['ts_code', 'trade_date'], how='left')
+        
+        dup_cols = [c for c in block_agg.columns if c in base_cols and c not in merge_keys]
+        if dup_cols:
+            block_agg = block_agg.drop(columns=dup_cols)
+        df_merge = pd.merge(df_merge, block_agg, on=merge_keys, how='left')
 
     df_merge = df_merge.sort_values('trade_date').reset_index(drop=True)
     try:
@@ -577,6 +651,37 @@ def main():
     else:
         print("📊 预测功能未启用，仅下载数据", flush=True)
     
+    # --- (v37 新增) 获取全市场龙虎榜和大宗交易数据 ---
+    # 这些数据按日期获取，而非按个股，所以在批量处理前一次性获取
+    from shared.downloader import fetch_market_data_by_date
+    
+    # 获取最近 N 个交易日的数据（用于历史回填）
+    # 实际生产中可以只获取当天数据
+    market_data_cache = {}  # {trade_date: {'top_list': df, 'block_trade': df}}
+    
+    try:
+        # 获取最近的交易日
+        today = datetime.today().strftime("%Y%m%d")
+        trade_cal = pro.trade_cal(exchange='SSE', start_date=(datetime.today() - timedelta(days=30)).strftime("%Y%m%d"), end_date=today)
+        if trade_cal is not None and not trade_cal.empty:
+            recent_trade_dates = trade_cal[trade_cal['is_open'] == 1]['cal_date'].sort_values(ascending=False).head(5).tolist()
+            
+            print(f"📡 获取最近 {len(recent_trade_dates)} 个交易日的龙虎榜/大宗数据...", flush=True)
+            for td in recent_trade_dates:
+                try:
+                    mkt_data = fetch_market_data_by_date(pro, td)
+                    if mkt_data:
+                        market_data_cache[td] = mkt_data
+                        top_cnt = len(mkt_data.get('top_list', pd.DataFrame()))
+                        block_cnt = len(mkt_data.get('block_trade', pd.DataFrame()))
+                        if top_cnt > 0 or block_cnt > 0:
+                            print(f"    {td}: 龙虎榜 {top_cnt} 条, 大宗 {block_cnt} 条", flush=True)
+                except Exception as e:
+                    print(f"    {td}: 获取失败 ({e})", flush=True)
+    except Exception as e:
+        print(f"⚠️ 获取市场数据失败: {e}，将跳过龙虎榜/大宗特征", flush=True)
+    # --- 全市场数据获取结束 ---
+    
     print("📋 正在获取股票列表...", flush=True)
     try:
         ts_codes = list_main_board_cs()
@@ -604,16 +709,48 @@ def main():
     total_download_time = 0.0
     total_process_time = 0.0
     
-    # 定义单只股票的处理函数
-    def process_one(code, daily_map, basic_map, flow_map):
+    # (v37 新增) 将市场数据缓存转换为按股票代码索引
+    # market_data_cache: {trade_date: {'top_list': df, 'block_trade': df}}
+    # 转换为: top_list_by_code = {ts_code: df}, block_trade_by_code = {ts_code: df}
+    top_list_by_code = {}
+    block_trade_by_code = {}
+    
+    for trade_date, mkt_data in market_data_cache.items():
+        # 处理龙虎榜数据
+        df_top = mkt_data.get('top_list')
+        if df_top is not None and not df_top.empty and 'ts_code' in df_top.columns:
+            for code in df_top['ts_code'].unique():
+                code_data = df_top[df_top['ts_code'] == code].copy()
+                if code not in top_list_by_code:
+                    top_list_by_code[code] = code_data
+                else:
+                    top_list_by_code[code] = pd.concat([top_list_by_code[code], code_data], ignore_index=True)
+        
+        # 处理大宗交易数据
+        df_block = mkt_data.get('block_trade')
+        if df_block is not None and not df_block.empty and 'ts_code' in df_block.columns:
+            for code in df_block['ts_code'].unique():
+                code_data = df_block[df_block['ts_code'] == code].copy()
+                if code not in block_trade_by_code:
+                    block_trade_by_code[code] = code_data
+                else:
+                    block_trade_by_code[code] = pd.concat([block_trade_by_code[code], code_data], ignore_index=True)
+    
+    print(f"📊 市场数据索引完成: 龙虎榜涉及 {len(top_list_by_code)} 只股票, 大宗交易涉及 {len(block_trade_by_code)} 只股票", flush=True)
+    
+    # 定义单只股票的处理函数 (v37 更新: 添加 top_list_by_code, block_trade_by_code)
+    def process_one(code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code):
         df_daily = daily_map.get(code)
         if df_daily is None or (hasattr(df_daily, 'empty') and df_daily.empty):
             return (code, False, 'no_data')
         
         df_basic = basic_map.get(code, pd.DataFrame())
         df_flow = flow_map.get(code, pd.DataFrame())
+        df_margin = margin_map.get(code, pd.DataFrame())  # v37 新增
+        df_top_list = top_list_by_code.get(code, pd.DataFrame())  # v37 新增
+        df_block_trade = block_trade_by_code.get(code, pd.DataFrame())  # v37 新增
         
-        df_merge = merge_and_postprocess(code, df_daily, df_basic, df_flow)
+        df_merge = merge_and_postprocess(code, df_daily, df_basic, df_flow, df_margin, df_top_list, df_block_trade)
         if df_merge is None:
             return (code, False, 'postprocess_fail')
         
@@ -626,9 +763,9 @@ def main():
         except Exception as e:
             return (code, False, str(e))
     
-    # 异步下载函数
+    # 异步下载函数 (v37 更新: 添加 fields_margin)
     def download_batch(chunk):
-        return fetch_batch(pro, chunk, START_DATE, fields_daily, fields_daily_basic, fields_moneyflow)
+        return fetch_batch(pro, chunk, START_DATE, fields_daily, fields_daily_basic, fields_moneyflow, fields_margin)
     
     # 使用流水线：下载和处理异步并行
     # 1个线程用于预取下一批，其余线程用于处理当前批
@@ -663,10 +800,11 @@ def main():
                 daily_map = fetched.get('daily', {})
                 basic_map = fetched.get('daily_basic', {})
                 flow_map = fetched.get('moneyflow', {})
+                margin_map = fetched.get('margin', {})  # v37 新增
                 
-                # 并行处理本批股票
+                # 并行处理本批股票 (v37 更新: 传递龙虎榜和大宗交易数据)
                 t1 = time.time()
-                process_futures = [executor.submit(process_one, code, daily_map, basic_map, flow_map) for code in chunk]
+                process_futures = [executor.submit(process_one, code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code) for code in chunk]
                 for fut in as_completed(process_futures):
                     code, success, err = fut.result()
                     if not success:

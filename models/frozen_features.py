@@ -241,4 +241,102 @@ def apply_technical_indicators(df):
             lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
         )
     
+    # --- (v37 新增: 融资融券特征) ---
+    # 融资融券是重要的杠杆资金指标，能反映市场情绪
+    if 'rzye' in df.columns:
+        # 1. 融资余额变化率 (日度)
+        df['margin_balance_change'] = df['rzye'].pct_change()
+        
+        # 2. 融资余额 5日均线
+        df['margin_balance_ma5'] = df['rzye'].rolling(5, min_periods=1).mean()
+        
+        # 3. 融资买入额占成交额比例 (杠杆情绪)
+        if 'rzmre' in df.columns and 'amount' in df.columns:
+            df['margin_buy_ratio'] = df['rzmre'] / (df['amount'] + 1e-8)
+        
+        # 4. 融资净买入 (买入 - 偿还)
+        if 'rzmre' in df.columns and 'rzche' in df.columns:
+            df['margin_net_buy'] = df['rzmre'] - df['rzche']
+            # 归一化
+            df['margin_net_buy_ratio'] = df['margin_net_buy'] / (df['amount'] + 1e-8)
+    
+    # 融券数据 (做空指标)
+    if 'rqye' in df.columns:
+        # 5. 融券余额变化率
+        df['short_balance_change'] = df['rqye'].pct_change()
+        
+        # 6. 融券/融资比 (做空情绪 vs 做多情绪)
+        if 'rzye' in df.columns:
+            df['short_long_ratio'] = df['rqye'] / (df['rzye'] + 1e-8)
+    
+    # 融资融券总余额占流通市值比例 (如果有市值数据)
+    if 'rzrqye' in df.columns and 'tot_mv' in df.columns:
+        df['margin_mv_ratio'] = df['rzrqye'] / (df['tot_mv'] * 1e4 + 1e-8)  # tot_mv 单位是万元
+    
+    # --- (v37 新增: 龙虎榜特征) ---
+    # 龙虎榜数据反映异常交易和机构动向
+    # 字段来源: merge_and_postprocess 中的聚合
+    # - top_buy_amount: 买入总额
+    # - top_sell_amount: 卖出总额  
+    # - top_net_amount: 净买入额
+    # - top_count: 上榜次数
+    
+    if 'top_net_amount' in df.columns:
+        # 1. 龙虎榜净买入占成交额比例
+        if 'amount' in df.columns:
+            df['top_net_buy_ratio'] = df['top_net_amount'] / (df['amount'] + 1e-8)
+        
+        # 2. 龙虎榜交易活跃度 (买+卖总额占成交额比)
+        if 'top_buy_amount' in df.columns and 'top_sell_amount' in df.columns:
+            df['top_activity_ratio'] = (df['top_buy_amount'] + df['top_sell_amount']) / (df['amount'] + 1e-8)
+        
+        # 3. 龙虎榜买卖力量对比
+        if 'top_buy_amount' in df.columns and 'top_sell_amount' in df.columns:
+            df['top_buy_sell_ratio'] = df['top_buy_amount'] / (df['top_sell_amount'] + 1e-8)
+    
+    # 龙虎榜上榜频率 (滚动30日上榜次数)
+    if 'top_count' in df.columns:
+        # 二值化：当日是否上榜
+        df['is_on_top_list'] = (df['top_count'] > 0).astype(int)
+        # 近30日上榜次数
+        df['top_count_30d'] = df['is_on_top_list'].rolling(30, min_periods=1).sum()
+    
+    # --- (v37 新增: 大宗交易特征) ---
+    # 大宗交易反映大资金动向和折溢价情况
+    # 字段来源: merge_and_postprocess 中的聚合
+    # - block_vol: 成交量 (股)
+    # - block_amount: 成交额 (元)
+    # - block_avg_price: 平均成交价
+    # - block_count: 交易笔数
+    
+    if 'block_amount' in df.columns and 'amount' in df.columns:
+        # 1. 大宗成交额占比
+        df['block_amount_ratio'] = df['block_amount'] / (df['amount'] + 1e-8)
+    
+    if 'block_vol' in df.columns and 'volume' in df.columns:
+        # 2. 大宗成交量占比
+        df['block_vol_ratio'] = df['block_vol'] / (df['volume'] + 1e-8)
+    
+    if 'block_avg_price' in df.columns and 'close' in df.columns:
+        # 3. 大宗折溢价率 (大宗成交价 vs 收盘价)
+        # < 0 折价，可能暗示看空或大宗减持
+        # > 0 溢价，可能暗示看多或大宗锁定
+        df['block_premium_rate'] = (df['block_avg_price'] - df['close']) / (df['close'] + 1e-8)
+    
+    if 'block_count' in df.columns:
+        # 4. 大宗交易频率 (近30日大宗次数)
+        df['has_block_trade'] = (df['block_count'] > 0).astype(int)
+        df['block_count_30d'] = df['has_block_trade'].rolling(30, min_periods=1).sum()
+    
+    # --- (v37 新增: 组合特征 - 多信号融合) ---
+    # 1. 杠杆资金综合信号 (融资买入强度 + 融券做空程度)
+    if 'margin_buy_ratio' in df.columns and 'short_long_ratio' in df.columns:
+        # 做多信号强 + 做空信号弱 = 看涨
+        df['leverage_sentiment'] = df['margin_buy_ratio'] - df['short_long_ratio']
+    
+    # 2. 机构-散户分歧度 (使用龙虎榜净买入替代原有的 inst_net_buy)
+    if 'top_net_buy_ratio' in df.columns and 'retail_sentiment' in df.columns:
+        # 龙虎榜资金买入，散户卖出 = 机构抄底信号
+        df['smart_money_divergence'] = df['top_net_buy_ratio'] - df['retail_sentiment']
+    
     return df
