@@ -138,45 +138,57 @@ def load_feature_engineering():
     
     return None
 
-def plot_shap_summary(explainer, X_sample, filename_prefix):
+def get_shap_explanation(model, X):
+    """使用 CatBoost 原生加速计算 SHAP 值"""
+    print("🚀 使用 CatBoost 原生接口加速计算 SHAP值...")
+    pool = cb.Pool(X)
+    # 返回 shape (N, F+1), 最后一列是 base_value
+    shap_values_raw = model.get_feature_importance(pool, type=cb.EFstrType.ShapValues)
+    
+    values = shap_values_raw[:, :-1]
+    base_values = shap_values_raw[:, -1]
+    
+    # 构造 SHAP Explanation 对象
+    explanation = shap.Explanation(
+        values=values,
+        base_values=base_values,
+        data=X,
+        feature_names=X.columns.tolist()
+    )
+    return explanation
+
+def plot_shap_summary(explanation, filename_prefix):
     """生成 SHAP 摘要图 (Beeswarm)"""
     print("🎨 正在生成 SHAP 摘要图 (Beeswarm)...")
-    shap_values = explainer(X_sample)
     
     plt.figure(figsize=(12, 10))
     plt.title(f"SHAP Summary: {filename_prefix}")
-    shap.summary_plot(shap_values, X_sample, show=False)
+    shap.summary_plot(explanation, show=False)
     
     out_file = os.path.join(REPORTS_DIR, f"shap_summary_{filename_prefix}.png")
     plt.savefig(out_file, bbox_inches='tight', dpi=300)
     plt.close()
     print(f"✅ 图表已保存: {out_file}")
 
-def plot_shap_bar(explainer, X_sample, filename_prefix):
+def plot_shap_bar(explanation, filename_prefix):
     """生成 SHAP 重要性条形图"""
     print("🎨 正在生成 SHAP 重要性条形图...")
-    shap_values = explainer(X_sample)
     
     plt.figure(figsize=(12, 10))
     plt.title(f"Feature Importance: {filename_prefix}")
-    shap.summary_plot(shap_values, X_sample, plot_type="bar", show=False)
+    shap.summary_plot(explanation, plot_type="bar", show=False)
     
     out_file = os.path.join(REPORTS_DIR, f"shap_bar_{filename_prefix}.png")
     plt.savefig(out_file, bbox_inches='tight', dpi=300)
     plt.close()
     print(f"✅ 图表已保存: {out_file}")
 
-def plot_latest_waterfall(explainer, X_sample, filename_prefix):
+def plot_latest_waterfall(explanation, filename_prefix):
     """生成最新一条数据的瀑布图 (解释单次预测)"""
     print("🎨 正在生成最新预测的瀑布图...")
-    # 取最后一行
-    shap_values = explainer(X_sample)
-    
-    # 瀑布图通常只支持单样本
-    # shap_values[index] 返回的是一个 Explanation 对象
     
     plt.figure(figsize=(10, 8))
-    shap.plots.waterfall(shap_values[-1], show=False, max_display=15)
+    shap.plots.waterfall(explanation[-1], show=False, max_display=15)
     plt.title(f"Latest Prediction Explanation: {filename_prefix}")
     
     out_file = os.path.join(REPORTS_DIR, f"shap_waterfall_{filename_prefix}.png")
@@ -284,7 +296,7 @@ def main():
                 continue
 
             # 交互式绘图菜单
-            explainer = None
+            explanation = None
             while True:
                 print("\n--- 可视化分析菜单 ---")
                 print("[1] 🐝 SHAP 摘要图 (Beeswarm) - 全局特征影响")
@@ -300,20 +312,25 @@ def main():
                 if viz_choice == '4':
                     break
                 
-                # 懒加载 explainer
-                if explainer is None and viz_choice in ['1', '2', '3']:
-                    print("🧮 初始化 SHAP Explainer (可能需要几秒)...")
-                    explainer = shap.TreeExplainer(model)
+                # 懒加载 explainer (使用原生加速)
+                if explanation is None and viz_choice in ['1', '2', '3']:
+                    try:
+                        explanation = get_shap_explanation(model, X_sample)
+                    except Exception as e:
+                        print(f"❌ SHAP 计算失败: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
                 
                 file_prefix = f"{os.path.basename(data_path).replace('.parquet','')}_{pd.Timestamp.now().strftime('%H%M%S')}"
                 
                 try:
                     if viz_choice == '1':
-                        plot_shap_summary(explainer, X_sample, file_prefix)
+                        plot_shap_summary(explanation, file_prefix)
                     elif viz_choice == '2':
-                        plot_shap_bar(explainer, X_sample, file_prefix)
+                        plot_shap_bar(explanation, file_prefix)
                     elif viz_choice == '3':
-                        plot_latest_waterfall(explainer, X_sample, file_prefix)
+                        plot_latest_waterfall(explanation, file_prefix)
                 except Exception as e:
                     print(f"❌ 绘图失败: {e}")
                     import traceback
