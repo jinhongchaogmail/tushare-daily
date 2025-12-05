@@ -274,7 +274,7 @@ def apply_technical_indicators(df):
     # 融资融券是重要的杠杆资金指标，能反映市场情绪
     if 'rzye' in df.columns:
         # 1. 融资余额变化率 (日度)
-        df['margin_balance_change'] = df['rzye'].pct_change()
+        df['margin_balance_change'] = df['rzye'].pct_change(fill_method=None)
         
         # 2. 融资余额 5日均线
         df['margin_balance_ma5'] = df['rzye'].rolling(5, min_periods=1).mean()
@@ -292,7 +292,7 @@ def apply_technical_indicators(df):
     # 融券数据 (做空指标)
     if 'rqye' in df.columns:
         # 5. 融券余额变化率
-        df['short_balance_change'] = df['rqye'].pct_change()
+        df['short_balance_change'] = df['rqye'].pct_change(fill_method=None)
         
         # 6. 融券/融资比 (做空情绪 vs 做多情绪)
         if 'rzye' in df.columns:
