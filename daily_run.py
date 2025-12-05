@@ -78,8 +78,7 @@ pro = ts.pro_api(env=TS_ENV, server=TS_SERVER)
 # 1. 基础行情字段 (包含交易状态)
 fields_daily = "ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,volume,amount,adj_factor,trade_status"
 # 2. 每日指标字段 (注意 XCSC 特有字段名: tot_mv, turn)
-# fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
-fields_daily_basic = None # 暂时关闭 daily_basic 下载，以节省时间
+fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
 # 3. 资金流向字段
 fields_moneyflow = "ts_code,trade_date,buy_sm_vol,sell_sm_vol,buy_md_vol,sell_md_vol,buy_lg_vol,sell_lg_vol,buy_elg_vol,sell_elg_vol,net_mf_vol,net_mf_amount"
 # 4. (v37 新增) 融资融券字段
