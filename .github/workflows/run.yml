@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ci/daily-run-clean
   schedule:
     - cron: "5 10 * * 1-5"  # UTC 10:05 = Beijing 18:05
   workflow_dispatch:
@@ -35,8 +36,8 @@ jobs:
       - name: 🚀 Run Download & Predict Script
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-          SKIP_PREDICTIONS: "0"  # 恢复预测，生成策略报告
-          SKIP_FINANCIALS: "1"   # 临时跳过财务数据对齐以加速下载（重新训练模型后可移除）
+          SKIP_PREDICTIONS: "0"
+          SKIP_FINANCIALS: "0"   # 开启财务数据对齐，启用全功能预测
         run: python daily_run.py
 
       - name: 📤 Upload Data Artifact
