@@ -767,12 +767,13 @@ def main():
         print("📊 预测功能未启用，仅下载数据", flush=True)
     
     # --- (v37 新增) 获取全市场龙虎榜和大宗交易数据 ---
-    # 这些数据按日期获取，而非按个股，所以在批量处理前一次性获取
+    # --- (v39 新增) 获取大盘指数数据 (用于计算相对强弱) ---
     from shared.downloader import fetch_market_data_by_date
     
     # 获取最近 N 个交易日的数据（用于历史回填）
     # 实际生产中可以只获取当天数据
     market_data_cache = {}  # {trade_date: {'top_list': df, 'block_trade': df}}
+    df_benchmark = pd.DataFrame() # 大盘指数数据
     
     try:
         # 获取最近的交易日
@@ -793,8 +794,20 @@ def main():
                             print(f"    {td}: 龙虎榜 {top_cnt} 条, 大宗 {block_cnt} 条", flush=True)
                 except Exception as e:
                     print(f"    {td}: 获取失败 ({e})", flush=True)
+        
+        # 获取大盘指数 (上证指数 000001.SH)
+        print("📡 获取大盘指数数据 (000001.SH)...", flush=True)
+        df_benchmark = pro.index_daily(ts_code='000001.SH', start_date=START_DATE, end_date=today, fields='trade_date,pct_chg')
+        if not df_benchmark.empty:
+            df_benchmark = df_benchmark.rename(columns={'pct_chg': 'benchmark_return'})
+            # 转换为小数
+            df_benchmark['benchmark_return'] = df_benchmark['benchmark_return'] / 100.0
+            print(f"    ✅ 获取到 {len(df_benchmark)} 条指数数据", flush=True)
+        else:
+            print("    ⚠️ 未获取到指数数据", flush=True)
+
     except Exception as e:
-        print(f"⚠️ 获取市场数据失败: {e}，将跳过龙虎榜/大宗特征", flush=True)
+        print(f"⚠️ 获取市场数据失败: {e}，将跳过龙虎榜/大宗/相对强弱特征", flush=True)
     # --- 全市场数据获取结束 ---
     
     print("📋 正在获取股票列表...", flush=True)
@@ -859,7 +872,8 @@ def main():
     SKIP_PREDICTIONS = os.environ.get('SKIP_PREDICTIONS', '0') in ('1', 'true', 'True')
 
     # 定义单只股票的处理函数 (v37 更新: 添加 top_list_by_code, block_trade_by_code)
-    def process_one(code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code):
+    # (v39 更新: 添加 df_benchmark)
+    def process_one(code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code, df_benchmark):
         df_daily = daily_map.get(code)
         if df_daily is None or (hasattr(df_daily, 'empty') and df_daily.empty):
             return (code, False, 'no_data')
@@ -873,6 +887,17 @@ def main():
         df_merge = merge_and_postprocess(code, df_daily, df_basic, df_flow, df_margin, df_top_list, df_block_trade)
         if df_merge is None:
             return (code, False, 'postprocess_fail')
+        
+        # --- (v39 新增) 合并大盘指数数据 ---
+        if not df_benchmark.empty:
+            # 确保日期格式一致
+            if 'trade_date' in df_merge.columns and 'trade_date' in df_benchmark.columns:
+                # 左连接合并
+                df_merge = pd.merge(df_merge, df_benchmark, on='trade_date', how='left')
+                # 填充缺失值 (如果个股有交易但大盘无数据，虽然罕见)
+                if 'benchmark_return' in df_merge.columns:
+                    df_merge['benchmark_return'] = df_merge['benchmark_return'].fillna(0.0)
+        # ---------------------------------
         
         try:
             if not SKIP_PREDICTIONS and model_enabled and model is not None:
@@ -923,8 +948,9 @@ def main():
                 margin_map = fetched.get('margin', {})  # v37 新增
                 
                 # 并行处理本批股票 (v37 更新: 传递龙虎榜和大宗交易数据)
+                # (v39 更新: 传递 df_benchmark)
                 t1 = time.time()
-                process_futures = [executor.submit(process_one, code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code) for code in chunk]
+                process_futures = [executor.submit(process_one, code, daily_map, basic_map, flow_map, margin_map, top_list_by_code, block_trade_by_code, df_benchmark) for code in chunk]
                 for fut in as_completed(process_futures):
                     code, success, err = fut.result()
                     if not success:
