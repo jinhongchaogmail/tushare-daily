@@ -226,6 +226,37 @@ def main():
             if 'close' in df.columns:
                 print(f"   💰 最新收盘: {df['close'].iloc[-1]:.2f}")
 
+            # --- (Fix) 补全可能缺失的原始数据列 (确保旧数据文件也能运行) ---
+            # 1. 融资融券字段
+            margin_cols = ['rzye', 'rqye', 'rzmre', 'rzche', 'rqmcl', 'rqchl', 'rzrqye']
+            for col in margin_cols:
+                if col not in df.columns:
+                    df[col] = 0.0
+                else:
+                    df[col] = df[col].fillna(0.0)
+            
+            # 2. 龙虎榜字段
+            top_cols = ['top_net_amount', 'top_buy_amount', 'top_sell_amount', 'top_count']
+            for col in top_cols:
+                if col not in df.columns:
+                    df[col] = 0.0
+                else:
+                    df[col] = df[col].fillna(0.0)
+            
+            # 3. 大宗交易字段
+            block_cols = ['block_vol', 'block_amount', 'block_count']
+            for col in block_cols:
+                if col not in df.columns:
+                    df[col] = 0.0
+                else:
+                    df[col] = df[col].fillna(0.0)
+            
+            if 'block_avg_price' not in df.columns:
+                df['block_avg_price'] = df['close'] if 'close' in df.columns else 0.0
+            else:
+                df['block_avg_price'] = df['block_avg_price'].fillna(df['close'] if 'close' in df.columns else 0.0)
+            # -------------------------------------------------------
+
             # 应用特征工程
             df_features = feature_module.apply_technical_indicators(df)
             
