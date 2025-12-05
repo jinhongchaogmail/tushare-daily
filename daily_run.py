@@ -84,6 +84,33 @@ fields_moneyflow = "ts_code,trade_date,buy_sm_vol,sell_sm_vol,buy_md_vol,sell_md
 # 4. (v37 新增) 融资融券字段
 fields_margin = "ts_code,trade_date,rzye,rqye,rzmre,rzche,rqmcl,rqchl,rzrqye"
 
+def get_model_metadata():
+    """获取模型元数据 (训练时间、参数等)"""
+    meta = {'train_time': '未知', 'params': {}}
+    if os.path.exists(MODEL_PATH):
+        mtime = os.path.getmtime(MODEL_PATH)
+        meta['train_time'] = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+    
+    if os.path.exists(PARAMS_PATH):
+        try:
+            with open(PARAMS_PATH, 'r') as f:
+                meta['params'] = json.load(f)
+        except Exception:
+            pass
+    return meta
+
+def get_stock_link(ts_code):
+    """生成雪球个股链接 (Markdown格式)"""
+    # 000001.SZ -> SZ000001
+    try:
+        if '.' in ts_code:
+            code, market = ts_code.split('.')
+            xq_code = f"{market}{code}"
+            return f"[{ts_code}](https://xueqiu.com/S/{xq_code})"
+    except:
+        pass
+    return ts_code
+
 def init_model():
     """初始化预测模型"""
     global model, vol_multiplier
@@ -216,9 +243,13 @@ def predict_stock(ts_code, df):
                 position = min(1.0, 0.02 / (current_vol + 1e-5))
 
         if is_candidate:
+            # 获取最新收盘价
+            close_price = df.iloc[-1]['close'] if 'close' in df.columns else 0.0
+            
             item = {
-                '代码': ts_code,
+                '代码': get_stock_link(ts_code), # 带链接的代码
                 '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
+                '收盘': f"{close_price:.2f}",
                 '信号': signal,
                 '上涨概率': f"{prob_up:.1%}",
                 '下跌概率': f"{prob_down:.1%}",
@@ -244,6 +275,9 @@ def generate_report(missing_features_info=None):
     today_str = datetime.now().strftime("%Y-%m-%d")
     report_path = "reports/strategy_report.md"
     
+    # 获取模型信息
+    model_meta = get_model_metadata()
+    
     if report:
         df_report = pd.DataFrame(report)
         
@@ -261,8 +295,18 @@ def generate_report(missing_features_info=None):
         
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
         with open(report_path, "w") as f:
-            f.write(f"# 每日量化策略报告 ({today_str})\n\n")
+            f.write(f"# 📈 每日量化策略报告 ({today_str})\n\n")
             
+            # --- 模型信息 ---
+            f.write("## 🤖 模型状态\n")
+            f.write(f"- **模型版本**: CatBoost (v38)\n")
+            f.write(f"- **训练时间**: {model_meta.get('train_time', '未知')}\n")
+            params = model_meta.get('params', {})
+            if params:
+                f.write(f"- **波动率乘数**: {params.get('vol_multiplier_best', 'N/A'):.4f}\n")
+                f.write(f"- **阈值模式**: {params.get('mode', 'N/A')}\n")
+            f.write("\n")
+
             # --- (新增) 系统状态/数据完整性报告 ---
             if missing_features_info:
                 f.write("## ⚠️ 系统状态报告\n")
@@ -277,6 +321,7 @@ def generate_report(missing_features_info=None):
             f.write(f"**总计入选**: {len(df_report)} (多头: {len(df_long)}, 空头: {len(df_short)})\n\n")
             
             f.write("## 🔴 多头机会 (Top 50)\n")
+            f.write("> 点击代码可查看 K 线图 (雪球)\n\n")
             if not df_long.empty:
                 f.write(df_long_display.head(50).to_markdown(index=False))
             else:
@@ -290,7 +335,11 @@ def generate_report(missing_features_info=None):
         
         csv_path = report_path.replace(".md", ".csv")
         # CSV 保留原始概率列，方便用户自己排序
-        df_report.sort_values('max_prob', ascending=False).to_csv(csv_path, index=False)
+        # CSV 中移除 Markdown 链接，只保留纯代码
+        df_csv = df_report.copy()
+        # 简单的正则去除 markdown 链接 [code](url) -> code
+        # 或者直接重新赋值，但这里为了简单，假设用户主要看 MD
+        df_csv.sort_values('max_prob', ascending=False).to_csv(csv_path, index=False)
         print(f"✅ 报告已保存: {report_path} 和 {csv_path}", flush=True)
     else:
         print("ℹ️ 今日无符合条件的交易机会", flush=True)
