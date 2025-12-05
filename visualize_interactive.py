@@ -174,15 +174,28 @@ def plot_shap_summary(explanation, filename_prefix):
     t0 = time.time()
     print("🎨 正在生成 SHAP 摘要图 (Beeswarm)...", end="", flush=True)
     
-    plt.figure(figsize=(10, 8))
-    plt.title(f"SHAP Summary: {filename_prefix}")
+    # 处理多分类: 默认展示 "上涨" (Class 2) 的特征影响
+    if len(explanation.shape) == 3:
+        # (N, F, C)
+        # 如果只有 2 类，可能没有 Class 2，取 Class 0
+        target_class = 2 if explanation.shape[2] > 2 else 0
+        class_names = {0: '下跌', 1: '震荡', 2: '上涨'}
+        class_name = class_names.get(target_class, str(target_class))
+        
+        print(f" [多分类: 展示 '{class_name}' (Class {target_class})]", end="")
+        explanation = explanation[:, :, target_class]
+        
+        plt.figure(figsize=(10, 8))
+        plt.title(f"SHAP Summary ({class_name}): {filename_prefix}")
+    else:
+        plt.figure(figsize=(10, 8))
+        plt.title(f"SHAP Summary: {filename_prefix}")
     
-    # 如果是多分类，默认展示第一类或提示用户？
-    # summary_plot 自动处理多分类，会显示 stacked bars 或多色点
+    # max_display=20 限制显示特征数，加快绘图
     shap.summary_plot(explanation, show=False, max_display=20, plot_size=None)
     
     out_file = os.path.join(REPORTS_DIR, f"shap_summary_{filename_prefix}.png")
-    plt.savefig(out_file, bbox_inches='tight', dpi=150)
+    plt.savefig(out_file, bbox_inches='tight', dpi=150) # 降低 DPI 加速保存
     print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
     
     print("👀 请在弹出的窗口中查看图表 (关闭窗口以继续)...")
