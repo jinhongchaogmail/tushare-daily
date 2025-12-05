@@ -138,9 +138,12 @@ def load_feature_engineering():
     
     return None
 
+import time
+
 def get_shap_explanation(model, X):
     """使用 CatBoost 原生加速计算 SHAP 值"""
-    print("🚀 使用 CatBoost 原生接口加速计算 SHAP值...")
+    t0 = time.time()
+    print("🚀 使用 CatBoost 原生接口加速计算 SHAP值...", end="", flush=True)
     pool = cb.Pool(X)
     # 返回 shape (N, F+1), 最后一列是 base_value
     shap_values_raw = model.get_feature_importance(pool, type=cb.EFstrType.ShapValues)
@@ -155,46 +158,51 @@ def get_shap_explanation(model, X):
         data=X,
         feature_names=X.columns.tolist()
     )
+    print(f" 完成 ({time.time()-t0:.2f}s)")
     return explanation
 
 def plot_shap_summary(explanation, filename_prefix):
     """生成 SHAP 摘要图 (Beeswarm)"""
-    print("🎨 正在生成 SHAP 摘要图 (Beeswarm)...")
+    t0 = time.time()
+    print("🎨 正在生成 SHAP 摘要图 (Beeswarm)...", end="", flush=True)
     
-    plt.figure(figsize=(12, 10))
+    plt.figure(figsize=(10, 8)) # 稍微减小尺寸
     plt.title(f"SHAP Summary: {filename_prefix}")
-    shap.summary_plot(explanation, show=False)
+    # max_display=20 限制显示特征数，加快绘图
+    shap.summary_plot(explanation, show=False, max_display=20, plot_size=None)
     
     out_file = os.path.join(REPORTS_DIR, f"shap_summary_{filename_prefix}.png")
-    plt.savefig(out_file, bbox_inches='tight', dpi=300)
+    plt.savefig(out_file, bbox_inches='tight', dpi=150) # 降低 DPI 加速保存
     plt.close()
-    print(f"✅ 图表已保存: {out_file}")
+    print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
 
 def plot_shap_bar(explanation, filename_prefix):
     """生成 SHAP 重要性条形图"""
-    print("🎨 正在生成 SHAP 重要性条形图...")
+    t0 = time.time()
+    print("🎨 正在生成 SHAP 重要性条形图...", end="", flush=True)
     
-    plt.figure(figsize=(12, 10))
+    plt.figure(figsize=(10, 8))
     plt.title(f"Feature Importance: {filename_prefix}")
-    shap.summary_plot(explanation, plot_type="bar", show=False)
+    shap.summary_plot(explanation, plot_type="bar", show=False, max_display=20, plot_size=None)
     
     out_file = os.path.join(REPORTS_DIR, f"shap_bar_{filename_prefix}.png")
-    plt.savefig(out_file, bbox_inches='tight', dpi=300)
+    plt.savefig(out_file, bbox_inches='tight', dpi=150)
     plt.close()
-    print(f"✅ 图表已保存: {out_file}")
+    print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
 
 def plot_latest_waterfall(explanation, filename_prefix):
     """生成最新一条数据的瀑布图 (解释单次预测)"""
-    print("🎨 正在生成最新预测的瀑布图...")
+    t0 = time.time()
+    print("🎨 正在生成最新预测的瀑布图...", end="", flush=True)
     
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(8, 6))
     shap.plots.waterfall(explanation[-1], show=False, max_display=15)
     plt.title(f"Latest Prediction Explanation: {filename_prefix}")
     
     out_file = os.path.join(REPORTS_DIR, f"shap_waterfall_{filename_prefix}.png")
-    plt.savefig(out_file, bbox_inches='tight', dpi=300)
+    plt.savefig(out_file, bbox_inches='tight', dpi=150)
     plt.close()
-    print(f"✅ 图表已保存: {out_file}")
+    print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
 
 def main():
     setup_plotting_style()
@@ -281,8 +289,8 @@ def main():
 
             X_full = df_features[model_feature_names].fillna(0.0)
             
-            # 采样用于 SHAP 摘要 (最近 500 行)
-            X_sample = X_full.tail(500)
+            # 采样用于 SHAP 摘要 (最近 200 行，加速绘图)
+            X_sample = X_full.tail(200)
             
             # 预测最新一天的概率
             latest_prob = model.predict_proba(X_full.iloc[[-1]])[0]
