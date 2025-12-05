@@ -246,10 +246,16 @@ def predict_stock(ts_code, df):
             # 获取最新收盘价
             close_price = df.iloc[-1]['close'] if 'close' in df.columns else 0.0
             
+            # 检查龙虎榜状态
+            top_list_info = ""
+            if 'top_count' in latest_row.columns and latest_row['top_count'].values[0] > 0:
+                top_list_info = "🔥"
+            
             item = {
                 '代码': get_stock_link(ts_code), # 带链接的代码
                 '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
                 '收盘': f"{close_price:.2f}",
+                '龙虎榜': top_list_info,
                 '信号': signal,
                 '上涨概率': f"{prob_up:.1%}",
                 '下跌概率': f"{prob_down:.1%}",
@@ -263,7 +269,7 @@ def predict_stock(ts_code, df):
             }
             report.append(item)
             if "强力" in signal:
-                print(f"  !!! 发现机会 [{ts_code}]: {signal} - {reason}", flush=True)
+                print(f"  !!! 发现机会 [{ts_code}]: {signal} - {reason} {top_list_info}", flush=True)
 
     except Exception as e:
         print(f"❌ [{ts_code}] 预测出错: {e}", flush=True)
