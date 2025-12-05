@@ -91,55 +91,69 @@ def fetch_financials(pro, ts_code, start_date='20180101', end_date=''):
 
 def align_financials_to_daily(df_daily, df_fin, ann_date_col='ann_date'):
     """
-    将季度财报 `df_fin` 向前填充到日频 `df_daily`。
+    将季度财报 `df_fin` 对齐到日频 `df_daily`，基于公告日 (`ann_date`) 进行安全向前填充。
+    
     规则:
-    - 对于日 t，使用最近一个已公布且 ann_date <= t 的财报数据
-    - 如果没有已公布的财报，使用 NaN
-    - 返回一个与 df_daily 索引对齐的新 DataFrame（含财务字段）
+    - 使用 `pd.merge_asof` 基于 `ann_date` 对齐，确保只能看到过去已发布的财报。
+    - 避免数据泄露：`direction='backward'` 确保对于日 t，只能使用 ann_date <= t 的财报。
+    - 数据清洗：剔除无效的 `ann_date`，确保公告日不早于财报期末日。
+    
+    参数:
+    - df_daily: 日频数据，需包含 'trade_date' 和 'ts_code' 列。
+    - df_fin: 财报数据，需包含 'ann_date', 'end_date', 'ts_code' 以及财务字段。
+    - ann_date_col: 公告日期列名，默认 'ann_date'。
+    
+    返回:
+    - 与 df_daily 索引对齐的 DataFrame，包含财务字段。
     """
     if df_fin.empty:
         # 返回空列框架
         return pd.DataFrame(index=df_daily.index)
-
+    
+    # 数据清洗：确保 df_fin 准备好
     df_fin = df_fin.copy()
-    # 确保日期列
-    df_fin[ann_date_col] = pd.to_datetime(df_fin[ann_date_col])
-
-    # 仅保留财务值列（除去标识列）
-    value_cols = [c for c in df_fin.columns if c not in ['ts_code','end_date','ann_date','report_date']]
-
-    # 创建按 ann_date 排序的时间序列并向前填充
-    # 对于每个日频日期，找到最大 ann_date <= date
+    
+    # 1. 确保 ann_date 是 datetime 格式
+    if ann_date_col in df_fin.columns:
+        df_fin[ann_date_col] = pd.to_datetime(df_fin[ann_date_col], errors='coerce')
+    else:
+        raise ValueError(f"财报数据中缺少 {ann_date_col} 列")
+    
+    # 2. 剔除 ann_date 为空的行
+    df_fin = df_fin.dropna(subset=[ann_date_col])
+    
+    # 3. 剔除 ann_date 早于 end_date 的异常行（如果 end_date 存在）
+    if 'end_date' in df_fin.columns:
+        df_fin['end_date'] = pd.to_datetime(df_fin['end_date'], errors='coerce')
+        df_fin = df_fin[df_fin[ann_date_col] >= df_fin['end_date']]
+    
+    # 4. 按 ts_code 和 ann_date 排序，确保 merge_asof 正确工作
+    df_fin = df_fin.sort_values(['ts_code', ann_date_col])
+    
+    # 准备 df_daily
     df_daily = df_daily.copy()
-    df_daily['__date'] = pd.to_datetime(df_daily['trade_date'])
-
-    out = pd.DataFrame(index=df_daily.index)
-    out.index.name = df_daily.index.name
-
-    # 若 df_fin 中 ann_date 为 NaT，则使用 end_date
-    df_fin['ref_date'] = df_fin[ann_date_col].fillna(df_fin.get('end_date'))
-    df_fin = df_fin.dropna(subset=['ref_date'])
-    df_fin = df_fin.sort_values('ref_date')
-
-    # 为加速，将 df_fin 转为按 ref_date 分组的字典
-    fin_list = []
-    for _, row in df_fin.iterrows():
-        fin_list.append((row['ref_date'], row[value_cols].to_dict()))
-
-    # 对每个日频日期选择最近的公布值
-    fin_dates = [d for d,_ in fin_list]
-    fin_vals = [v for _,v in fin_list]
-
-    import bisect
-    rows = []
-    for i, dt in enumerate(df_daily['__date']):
-        pos = bisect.bisect_right(fin_dates, dt) - 1
-        if pos >= 0:
-            out_row = fin_vals[pos]
-        else:
-            out_row = {c: np.nan for c in value_cols}
-        rows.append(out_row)
-
-    out = pd.DataFrame(rows, columns=value_cols)
-    out.index = df_daily.index
-    return out
+    if 'trade_date' not in df_daily.columns:
+        raise ValueError("日频数据中缺少 'trade_date' 列")
+    df_daily['trade_date'] = pd.to_datetime(df_daily['trade_date'], errors='coerce')
+    df_daily = df_daily.dropna(subset=['trade_date'])
+    df_daily = df_daily.sort_values(['ts_code', 'trade_date'])
+    
+    # 确定要保留的财务字段（排除标识列）
+    exclude_cols = ['ts_code', 'end_date', ann_date_col, 'report_date']
+    value_cols = [c for c in df_fin.columns if c not in exclude_cols]
+    
+    # 使用 pd.merge_asof 进行对齐
+    merged = pd.merge_asof(
+        left=df_daily[['ts_code', 'trade_date']],
+        right=df_fin[['ts_code', ann_date_col] + value_cols],
+        left_on='trade_date',
+        right_on=ann_date_col,
+        by='ts_code',
+        direction='backward'  # 只能使用 ann_date <= trade_date 的财报
+    )
+    
+    # 清理结果：删除重复的标识列，保留财务字段
+    result = merged[value_cols].copy()
+    result.index = df_daily.index  # 保持与 df_daily 的索引对齐
+    
+    return result

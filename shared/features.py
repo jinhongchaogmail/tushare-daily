@@ -22,6 +22,12 @@ def apply_technical_indicators(df):
     df.ta.stoch(append=True)
     df.ta.cmf(append=True)
     
+    # --- (v38 新增) 绝对值指标归一化 ---
+    # MACD 归一化 (除以收盘价，消除股价高低影响)
+    for col in ['MACD_12_26_9', 'MACDh_12_26_9', 'MACDs_12_26_9']:
+        if col in df.columns:
+            df[f'{col}_norm'] = df[col] / (df['close'] + 1e-8)
+
     # --- (v25 新增) 高效比率特征 ---
     # 乖离率
     df['bias_sma20'] = (df['close'] - df['SMA_20']) / (df['SMA_20'] + 1e-8)
@@ -48,6 +54,17 @@ def apply_technical_indicators(df):
     df.ta.obv(append=True)
     df.ta.ad(append=True)
     
+    # (v38) 量能指标归一化
+    # OBV/AD 是累积值，绝对大小无意义，需去趋势
+    if 'OBV' in df.columns:
+        # 使用 20日 偏离度 / 20日总成交量
+        vol_sum_20 = df['volume'].rolling(20).sum() + 1e-8
+        df['OBV_norm'] = (df['OBV'] - df['OBV'].rolling(20).mean()) / vol_sum_20
+        
+    if 'AD' in df.columns:
+        vol_sum_20 = df['volume'].rolling(20).sum() + 1e-8
+        df['AD_norm'] = (df['AD'] - df['AD'].rolling(20).mean()) / vol_sum_20
+
     # --- (v18：分位数特征) ---
     df['rsi_percentile_60'] = df['RSI_14'].rolling(60, min_periods=20).apply(
         lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
@@ -167,6 +184,17 @@ def apply_technical_indicators(df):
             mid_out = df['sell_md_vol']
             df['mid_force_net_inflow'] = mid_in - mid_out
             df['mid_force_ratio'] = (mid_in + mid_out) / (df['volume'] + 1e-8)
+            
+            # 新增: 中单净流入率 (归一化到成交量)
+            df['mid_force_net_inflow_ratio'] = df['mid_force_net_inflow'] / (df['volume'] + 1e-8)
+            
+            # 新增: 主力 vs 中单分歧度 (主力买入而中单卖出通常是更好信号)
+            if 'main_force_net_inflow' in df.columns:
+                main_net_inflow_ratio = df['main_force_net_inflow'] / (df['volume'] + 1e-8)
+                df['mid_force_divergence'] = main_net_inflow_ratio - df['mid_force_net_inflow_ratio']
+            else:
+                # 如果主力字段不存在，填充 0
+                df['mid_force_divergence'] = 0.0
 
     # (v34 补充) 资金流向金额 - 区分“量”与“钱”
     if 'net_mf_amount' in df.columns:
@@ -226,9 +254,10 @@ def apply_technical_indicators(df):
 
     # --- 保留有价值的衍生特征 ---
     
-    # vol_ma5: 波动率的平滑版本（有独立信息，重要性 2.53）
-    if 'volatility_10d' in df.columns and 'vol_ma5' not in df.columns:
-        df['vol_ma5'] = df['volatility_10d'].rolling(5, min_periods=1).mean()
+    # volatility_ma5: 波动率的平滑版本（有独立信息，重要性 2.53）
+    # (v38 修正: 重命名为 volatility_ma5 以避免与成交量混淆)
+    if 'volatility_10d' in df.columns and 'volatility_ma5' not in df.columns:
+        df['volatility_ma5'] = df['volatility_10d'].rolling(5, min_periods=1).mean()
 
     # momentum_5: 5日动量（与 return_5d 计算方式相同，但命名更直观）
     # 注意：如果模型已有 return_5d，可考虑删除此特征
@@ -339,4 +368,12 @@ def apply_technical_indicators(df):
         # 龙虎榜资金买入，散户卖出 = 机构抄底信号
         df['smart_money_divergence'] = df['top_net_buy_ratio'] - df['retail_sentiment']
     
+    # --- (v38.1 Fix) 恢复旧模型兼容性别名 ---
+    # 当前模型 (v37) 仍依赖旧名称 vol_ma5 和 volatility_10
+    if 'volatility_10d' in df.columns:
+        df['volatility_10'] = df['volatility_10d']
+    
+    if 'volatility_ma5' in df.columns:
+        df['vol_ma5'] = df['volatility_ma5']
+
     return df

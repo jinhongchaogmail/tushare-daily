@@ -398,7 +398,21 @@ def process_single_file(file_path):
 
         # 优化2.1：去重的特征计算
         # (v32 优化: 确保使用纯净的原始数据进行特征计算，避免云端旧特征污染)
-        raw_cols = ['trade_date', 'ts_code', 'open', 'high', 'low', 'close', 'pre_close', 'change', 'pct_chg', 'vol', 'amount', 'volume']
+        # (v38 修正: 添加基本面和资金流字段，确保 frozen_features.py 中的新特征能被计算)
+        raw_cols = [
+            'trade_date', 'ts_code', 'open', 'high', 'low', 'close', 'pre_close', 'change', 'pct_chg', 'vol', 'amount', 'volume',
+            # 财务/基本面
+            'turn', 'pe', 'pe_ttm', 'pb', 'pb_new', 'total_revenue', 'n_income_attr_p', 'basic_eps', 'tot_mv', 'free_turnover',
+            # 融资融券
+            'rzye', 'rzmre', 'rzche', 'rqye', 'rzrqye',
+            # 资金流向
+            'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol', 'net_mf_amount',
+            # 龙虎榜与大宗交易
+            'top_net_amount', 'top_buy_amount', 'top_sell_amount', 'top_count', 
+            'block_vol', 'block_amount', 'block_avg_price', 'block_count',
+            # 52周高低
+            'high_52w', 'low_52w'
+        ]
         # 保留存在的原始列
         cols_to_keep = [c for c in raw_cols if c in df.columns]
         # 如果有其他非特征列需要保留，可以在这里添加
@@ -646,12 +660,12 @@ def post_process_data(processed_dfs):
     combined_df['excess_return'] = combined_df['close_pct_change'] - combined_df['market_return']
     
     # 4. 计算当日涨幅排名 (0~1) - (v27 新增: 截面特征)
-    # 这能剔除大盘的影响，还原个股真实的强弱
-    combined_df['rank_pct_chg'] = combined_df.groupby(combined_df.index.name)['close_pct_change'].rank(pct=True).astype('float32')
+    # (v38 修正: 移除全局截面排名计算，改用 shared/features.py 中的滚动排名，以保持训练与推断一致)
+    # combined_df['rank_pct_chg'] = combined_df.groupby(combined_df.index.name)['close_pct_change'].rank(pct=True).astype('float32')
     
     # 5. 填充可能的 NaN (比如某天只有一只股票交易，或者数据缺失)
     combined_df['excess_return'] = combined_df['excess_return'].fillna(0.0).astype('float32')
-    combined_df['rank_pct_chg'] = combined_df['rank_pct_chg'].fillna(0.5).astype('float32') # 默认排名居中
+    # combined_df['rank_pct_chg'] = combined_df['rank_pct_chg'].fillna(0.5).astype('float32') # 默认排名居中
     
     # 移除中间变量 market_return 以节省内存 (如果不需要作为特征)
     combined_df.drop(columns=['market_return'], inplace=True)
@@ -744,7 +758,17 @@ def run_optuna_study(combined_df, base_save_path):
             'tot_mv', 'mv', 'turn', 'pe', 'pe_ttm', 'pb_new', 'free_turnover', 'high_52w', 'low_52w',
             'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol', 
             'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',
-            'net_mf_vol', 'net_mf_amount'
+            'net_mf_vol', 'net_mf_amount',
+            # (v38) 排除绝对值技术指标和资金流绝对值，强制使用 _norm 或 _ratio 版本
+            'MACD_12_26_9', 'MACDh_12_26_9', 'MACDs_12_26_9', 'OBV', 'AD',
+            # 融资融券原始绝对值 (Tushare 字段名)
+            'rzye', 'rzmre', 'rzche', 'rqye', 'rzrqye',
+            # 龙虎榜原始绝对值
+            'top_net_amount', 'top_buy_amount', 'top_sell_amount',
+            # 衍生绝对值
+            'margin_balance', 'short_balance', 'margin_net_buy', 'short_net_sell', # 防御性排除
+            'top_net_buy', # 防御性排除
+            'margin_balance_ma5', 'block_amount', 'block_vol'
         }
         # 排除所有以 'future_' 或 'shift' 开头的 (保持原逻辑)
         exclude |= {c for c in df.columns if c.lower().startswith('future_') or 'shift' in c.lower() or c in exclude}
@@ -758,7 +782,7 @@ def run_optuna_study(combined_df, base_save_path):
     FEATURE_NAME_MAP = {
         'volatility_factor': '波动率因子',
         'rsi_percentile_60': 'RSI分位数(60日)',
-        'vol_ma5': '成交量均线(5日)',
+        'volatility_ma5': '波动率均线(5日)',
         'price_percentile_60': '价格分位数(60日)',
         'OBV': '能量潮(OBV)',
         'ATRr_14': '真实波幅(ATR)',
@@ -810,6 +834,8 @@ def run_optuna_study(combined_df, base_save_path):
         'retail_sentiment': '散户情绪',
         'mid_force_net_inflow': '中单净流入',
         'mid_force_ratio': '中单参与度',
+        'mid_force_net_inflow_ratio': '中单净流入率',
+        'mid_force_divergence': '中单主力背离',
         'net_mf_amt_ratio': '净流入金额占比',
         'price_position_52w': '52周价格位置'
     }
@@ -872,10 +898,14 @@ def run_optuna_study(combined_df, base_save_path):
             'learning_rate': trial.suggest_float('learning_rate', lr_range[0], lr_range[1], log=True),
             'depth': trial.suggest_int('depth', depth_range[0], depth_range[1]),
             'subsample': trial.suggest_float('subsample', 0.6, 0.9),
-            'l2_leaf_reg': trial.suggest_float('l2_leaf_reg', 1e-8, 10.0, log=True),
+            # 扩大正则化范围以应对高噪声金融数据
+            'l2_leaf_reg': trial.suggest_float('l2_leaf_reg', 1.0, 30.0, log=True),
             'bootstrap_type': 'Bernoulli',
             # v18 新增：正则化参数
             'min_data_in_leaf': trial.suggest_int('min_data_in_leaf', 10, 100),
+            # 新增抗过拟合参数
+            'random_strength': trial.suggest_int('random_strength', 1, 20),
+            # 'bagging_temperature': trial.suggest_float('bagging_temperature', 0.0, 1.0), # 仅 Bayesian 支持
         }
 
         if _GPU_AVAILABLE:
@@ -888,6 +918,17 @@ def run_optuna_study(combined_df, base_save_path):
             params['colsample_bylevel'] = trial.suggest_float('colsample_bylevel', 0.5, 1.0)
             # v18 新增：特征采样 (CPU only)
             params['rsm'] = trial.suggest_float('rsm', 0.5, 1.0)
+            
+            # 仅在 CPU 模式下且 bootstrap_type 为 Bayesian 时才支持 bagging_temperature
+            # 但我们上面固定了 bootstrap_type='Bernoulli'，所以不能用 bagging_temperature
+            # 如果想用 bagging_temperature，需要将 bootstrap_type 改为 Bayesian
+            # 这里我们简单地移除 bagging_temperature，或者根据 bootstrap_type 动态设置
+            
+            # 修正方案：
+            # 如果要用 bagging_temperature，必须用 Bayesian。
+            # 如果坚持用 Bernoulli，则不能设 bagging_temperature。
+            # 考虑到 Bernoulli 在分类任务中表现通常不错，我们移除 bagging_temperature 参数。
+            pass
 
         return params
 
@@ -1461,6 +1502,13 @@ def run_optuna_study(combined_df, base_save_path):
                                     features_dst = os.path.join(GDRIVE_SAVE_PATH, 'frozen_features.py')
                                     shutil.copy2(features_src, features_dst)
                                     print(f"特征工程代码快照已保存到: {features_dst}")
+
+                                    # --- (v38 Fix) Also update the local models/frozen_features.py for inference ---
+                                    local_frozen_path = os.path.join(current_dir, '..', 'models', 'frozen_features.py')
+                                    # Ensure directory exists
+                                    os.makedirs(os.path.dirname(local_frozen_path), exist_ok=True)
+                                    shutil.copy2(features_src, local_frozen_path)
+                                    print(f"Local inference snapshot updated: {local_frozen_path}")
                                 else:
                                     logger.warning("未找到 features.py 源文件，无法保存代码快照。")
                             except Exception as e:
@@ -1669,7 +1717,18 @@ if __name__ == '__main__':
     
     # 计算特征工程参数哈希
     feature_config = str(CONFIG.config.get('features', {}))
-    config_hash = hashlib.md5(feature_config.encode()).hexdigest()[:8]
+    
+    # (v38.2 Fix) Include shared/features.py code hash in the cache key
+    # This ensures that if feature engineering logic changes, the cache is invalidated.
+    try:
+        features_py_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'shared', 'features.py')
+        with open(features_py_path, 'rb') as f:
+            features_code_hash = hashlib.md5(f.read()).hexdigest()[:8]
+    except Exception as e:
+        print(f"Warning: Could not hash features.py: {e}")
+        features_code_hash = "unknown"
+
+    config_hash = hashlib.md5((feature_config + features_code_hash).encode()).hexdigest()[:8]
     cache_path = os.path.join(
         paths_config['GDRIVE_BASE_PATH'],
         f'feature_cache_{MAX_FILES_TO_PROCESS}_{config_hash}.parquet'

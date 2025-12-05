@@ -1,5 +1,5 @@
 {
-  "vol_multiplier_best": 0.9675258943716663,
+  "vol_multiplier_best": 0.9304257712616717,
   "offset_best": 0.0,
   "mode": "dynamic_volatility",
   "note": "Dynamic thresholding enabled. Bounds are per-sample based on volatility."

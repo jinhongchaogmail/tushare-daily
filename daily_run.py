@@ -240,7 +240,7 @@ def predict_stock(ts_code, df):
         import traceback
         traceback.print_exc()
 
-def generate_report():
+def generate_report(missing_features_info=None):
     """生成预测报告 (分多空展示)"""
     today_str = datetime.now().strftime("%Y-%m-%d")
     report_path = "reports/strategy_report.md"
@@ -263,6 +263,18 @@ def generate_report():
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
         with open(report_path, "w") as f:
             f.write(f"# 每日量化策略报告 ({today_str})\n\n")
+            
+            # --- (新增) 系统状态/数据完整性报告 ---
+            if missing_features_info:
+                f.write("## ⚠️ 系统状态报告\n")
+                f.write(f"**数据完整性**: {missing_features_info['status']}\n")
+                if missing_features_info['missing']:
+                    f.write(f"**缺失数据源**: {', '.join(missing_features_info['missing'])}\n")
+                    f.write("> 注意: 缺失数据可能导致模型精度下降 (如缺失资金流数据)。\n\n")
+                else:
+                    f.write("> ✅ 所有关键数据源均已连接。\n\n")
+            # ------------------------------------
+
             f.write(f"**总计入选**: {len(df_report)} (多头: {len(df_long)}, 空头: {len(df_short)})\n\n")
             
             f.write("## 🔴 多头机会 (Top 50)\n")
@@ -294,6 +306,15 @@ def generate_report():
             os.makedirs(os.path.dirname(report_path), exist_ok=True)
             with open(report_path, "w") as f:
                 f.write(f"# 每日量化策略报告 ({today_str}) - DEBUG MODE\n\n")
+                
+                # --- (新增) 系统状态/数据完整性报告 ---
+                if missing_features_info:
+                    f.write("## ⚠️ 系统状态报告\n")
+                    f.write(f"**数据完整性**: {missing_features_info['status']}\n")
+                    if missing_features_info['missing']:
+                        f.write(f"**缺失数据源**: {', '.join(missing_features_info['missing'])}\n")
+                # ------------------------------------
+
                 f.write("⚠️ **注意**: 今日无符合阈值的机会。以下为概率最高的 Top 10 股票 (仅供调试参考)。\n\n")
                 f.write(df_top.drop(columns=['prob_up_raw', 'prob_down_raw', 'max_prob'], errors='ignore').to_markdown(index=False))
             
@@ -862,7 +883,26 @@ def main():
         print(f"✅ 已生成占位报告: {report_path}", flush=True)
     else:
         if model_enabled and model is not None:
-            generate_report()
+            # 收集系统状态信息
+            missing_features_info = {
+                'status': '正常',
+                'missing': []
+            }
+            
+            if not HAS_FEATURE_ENGINE:
+                missing_features_info['status'] = '严重降级 (无特征工程)'
+                missing_features_info['missing'].append("特征工程模块 (shared/features.py)")
+            
+            if fields_daily_basic is None:
+                missing_features_info['status'] = '降级 (缺失基本面)'
+                missing_features_info['missing'].append("基本面数据 (daily_basic: free_turnover, pe, pb)")
+                
+            # 检查是否有资金流数据 (通过检查 report 中的特征列，或者简单假设如果配置了就有)
+            # 这里简单检查配置
+            if not fields_moneyflow:
+                 missing_features_info['missing'].append("资金流数据 (moneyflow)")
+            
+            generate_report(missing_features_info)
 
     print("🎉 RUN_DONE: 所有任务完成", flush=True)
 

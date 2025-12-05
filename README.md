@@ -39,6 +39,8 @@
    ```bash
    export TUSHARE_TOKEN="your_token_here"
    ```
+
+更多项目说明与精简文档请参阅：`docs/DOCUMENTATION_SUMMARY.md`
 3. 运行预测:
    ```bash
    python daily_run.py

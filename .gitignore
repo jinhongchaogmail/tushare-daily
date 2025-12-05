@@ -17,5 +17,9 @@ reports/
 skipped.csv
 .DS_Store
 .vscode/
-
+training/
+logs/
+docs/
+backups/
+feature_cache_*.parquet
 data.zip

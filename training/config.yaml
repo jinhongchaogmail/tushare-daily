@@ -3,9 +3,9 @@
 
 # 数据处理参数
 data:
-  max_files_to_process: 5000 # 全量模式：覆盖所有文件
+  max_files_to_process: null # 全量模式
   min_dataframe_rows: 20
-  cache_enabled: true # 启用缓存
+  cache_enabled: true # 开启缓存
   cache_version: "v18_excess_return"  # 版本变更时自动失效缓存
 
 # 特征工程参数
@@ -33,23 +33,23 @@ features:
 
 # Optuna 寻优参数
 optuna:
-  n_trials: 50  # 优化模式：增加试验次数
-  n_jobs: 2  # 设为1避免与CatBoost多线程冲突
+  n_trials: 300  # 优化模式：增加试验次数 (100-300)
+  n_jobs: -1  # 设为-1使用所有CPU核心 (GPU模式下代码会自动强制为1)
   tsc_splits: 3  # 优化：恢复为 3
   future_gap: 5  # CV训练/验证集之间的间隔天数，防止标签泄露
   
   # 中止条件
-  pruner_startup: 2  # 优化：从5减少到2
+  pruner_startup: 3  # 优化：从5减少到2
   # n_warmup_steps 硬编码为 1 (不从 Config 读取)
   
   # 参数搜索空间 (v31: Refined based on 12-03 Analysis - Trial 170/126)
   search_space:
     # threshold: [0.001, 0.8]  # v23: 已废弃，改用动态波动率乘数
-    vol_multiplier: [0.90, 0.98]  # Best: ~0.93-0.95. Narrowed from [0.85, 1.0]
+    vol_multiplier: [0.90, 0.988]  # Best: ~0.93-0.95. Narrowed from [0.85, 1.0]
     offset: [0.0, 0.0]  # v23: 固定为0
     iterations: [1700, 1900]  # Best: ~1750-1800. Shifted up from [1600, 1800]
     learning_rate: [0.065, 0.08]  # Best: ~0.072. Narrowed from [0.05, 0.08]
-    depth: [10, 10] # Best: 10. Fixed to 10.
+    depth: [10, 13] # Best: 10. Fixed to 10.
     subsample: [0.80, 0.95] # Best: ~0.85-0.89. CORRECTED from [0.6, 0.8]
     l2_leaf_reg: [3.0, 10.0] # Best: ~5.0-9.0. CORRECTED from [1.0, 3.0]
     min_data_in_leaf: [20, 50] # Best: ~30-40. Added based on analysis.

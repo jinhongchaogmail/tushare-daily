@@ -22,6 +22,12 @@ def apply_technical_indicators(df):
     df.ta.stoch(append=True)
     df.ta.cmf(append=True)
     
+    # --- (v38 新增) 绝对值指标归一化 ---
+    # MACD 归一化 (除以收盘价，消除股价高低影响)
+    for col in ['MACD_12_26_9', 'MACDh_12_26_9', 'MACDs_12_26_9']:
+        if col in df.columns:
+            df[f'{col}_norm'] = df[col] / (df['close'] + 1e-8)
+
     # --- (v25 新增) 高效比率特征 ---
     # 乖离率
     df['bias_sma20'] = (df['close'] - df['SMA_20']) / (df['SMA_20'] + 1e-8)
@@ -38,15 +44,27 @@ def apply_technical_indicators(df):
     
     # 量能特征
     df['volume_ma_ratio'] = df['volume'] / (df['volume'].rolling(20, min_periods=1).mean() + 1e-8)
+    df['price_volume_momentum'] = df['close'].pct_change() * df['volume']
     
     # 多周期收益率
     for lag in [2, 3, 5, 10]:
-        df[f'return_{lag}d'] = df['close'].pct_change(lag, fill_method=None)
+        df[f'return_{lag}d'] = df['close'].pct_change(lag)
     
     # --- 量能指标 ---
     df.ta.obv(append=True)
     df.ta.ad(append=True)
     
+    # (v38) 量能指标归一化
+    # OBV/AD 是累积值，绝对大小无意义，需去趋势
+    if 'OBV' in df.columns:
+        # 使用 20日 偏离度 / 20日总成交量
+        vol_sum_20 = df['volume'].rolling(20).sum() + 1e-8
+        df['OBV_norm'] = (df['OBV'] - df['OBV'].rolling(20).mean()) / vol_sum_20
+        
+    if 'AD' in df.columns:
+        vol_sum_20 = df['volume'].rolling(20).sum() + 1e-8
+        df['AD_norm'] = (df['AD'] - df['AD'].rolling(20).mean()) / vol_sum_20
+
     # --- (v18：分位数特征) ---
     df['rsi_percentile_60'] = df['RSI_14'].rolling(60, min_periods=20).apply(
         lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min() + 1e-8), raw=False
@@ -78,7 +96,7 @@ def apply_technical_indicators(df):
     df['bb_position'] = df['bb_position'].clip(-2, 2)
     
     # --- (v19：交叉特征) ---
-    df['close_pct_change'] = df['close'].pct_change(fill_method=None)
+    df['close_pct_change'] = df['close'].pct_change()
     df['rsi_volume_cross'] = (df['RSI_14'] / 50 - 1) * df['volume_ma_ratio']
     
     df['macd_trend_cross'] = df['MACDh_12_26_9'] * df['trend_strength']
@@ -88,13 +106,13 @@ def apply_technical_indicators(df):
     
     # [新增] 计算波动率因子 (Top 2 特征，用于动态阈值)
     # 使用 20日滚动标准差，确保与主脚本逻辑一致
-    df['volatility_factor'] = df['close'].pct_change(fill_method=None).rolling(window=20).std()
+    df['volatility_factor'] = df['close'].pct_change().rolling(window=20).std()
 
     # --- (v27 新增: 多周期波动率与周期性特征波动率) ---
     # 1. 不同周期的价格波动率 (捕捉短期和长期市场情绪)
-    df['volatility_5d'] = df['close'].pct_change(fill_method=None).rolling(window=5).std()
-    df['volatility_10d'] = df['close'].pct_change(fill_method=None).rolling(window=10).std()
-    df['volatility_60d'] = df['close'].pct_change(fill_method=None).rolling(window=60).std()
+    df['volatility_5d'] = df['close'].pct_change().rolling(window=5).std()
+    df['volatility_10d'] = df['close'].pct_change().rolling(window=10).std()
+    df['volatility_60d'] = df['close'].pct_change().rolling(window=60).std()
     
     # 2. 周期性指标的波动率 (衡量指标本身的稳定性)
     # RSI 的波动率 (衡量动量的稳定性: 波动大=情绪不稳, 波动小=趋势稳定)
@@ -166,6 +184,17 @@ def apply_technical_indicators(df):
             mid_out = df['sell_md_vol']
             df['mid_force_net_inflow'] = mid_in - mid_out
             df['mid_force_ratio'] = (mid_in + mid_out) / (df['volume'] + 1e-8)
+            
+            # 新增: 中单净流入率 (归一化到成交量)
+            df['mid_force_net_inflow_ratio'] = df['mid_force_net_inflow'] / (df['volume'] + 1e-8)
+            
+            # 新增: 主力 vs 中单分歧度 (主力买入而中单卖出通常是更好信号)
+            if 'main_force_net_inflow' in df.columns:
+                main_net_inflow_ratio = df['main_force_net_inflow'] / (df['volume'] + 1e-8)
+                df['mid_force_divergence'] = main_net_inflow_ratio - df['mid_force_net_inflow_ratio']
+            else:
+                # 如果主力字段不存在，填充 0
+                df['mid_force_divergence'] = 0.0
 
     # (v34 补充) 资金流向金额 - 区分“量”与“钱”
     if 'net_mf_amount' in df.columns:
@@ -194,7 +223,7 @@ def apply_technical_indicators(df):
     # 4. 超额收益 (简单近似)
     # 注意: train.py 中有更复杂的 excess_return 计算 (减去大盘)，这里仅作为 fallback
     if 'excess_return' not in df.columns:
-           df['excess_return'] = df['close'].pct_change(fill_method=None)
+        df['excess_return'] = df['close'].pct_change()
 
     # --- (v35 新增: 基于季报的财务特征) ---
     # 如果日表中包含对齐后的季报字段（如 total_revenue, n_income_attr_p, basic_eps）
@@ -225,14 +254,15 @@ def apply_technical_indicators(df):
 
     # --- 保留有价值的衍生特征 ---
     
-    # vol_ma5: 波动率的平滑版本（有独立信息，重要性 2.53）
-    if 'volatility_10d' in df.columns and 'vol_ma5' not in df.columns:
-        df['vol_ma5'] = df['volatility_10d'].rolling(5, min_periods=1).mean()
+    # volatility_ma5: 波动率的平滑版本（有独立信息，重要性 2.53）
+    # (v38 修正: 重命名为 volatility_ma5 以避免与成交量混淆)
+    if 'volatility_10d' in df.columns and 'volatility_ma5' not in df.columns:
+        df['volatility_ma5'] = df['volatility_10d'].rolling(5, min_periods=1).mean()
 
     # momentum_5: 5日动量（与 return_5d 计算方式相同，但命名更直观）
     # 注意：如果模型已有 return_5d，可考虑删除此特征
     if 'momentum_5' not in df.columns:
-        df['momentum_5'] = df['close'].pct_change(5, fill_method=None)
+        df['momentum_5'] = df['close'].pct_change(5)
 
     # rank_pct_chg: 当日涨幅在近60日的分位数（有独立信息，重要性 1.58）
     if 'pct_chg' in df.columns and 'rank_pct_chg' not in df.columns:
@@ -244,7 +274,7 @@ def apply_technical_indicators(df):
     # 融资融券是重要的杠杆资金指标，能反映市场情绪
     if 'rzye' in df.columns:
         # 1. 融资余额变化率 (日度)
-        df['margin_balance_change'] = df['rzye'].pct_change(fill_method=None)
+        df['margin_balance_change'] = df['rzye'].pct_change()
         
         # 2. 融资余额 5日均线
         df['margin_balance_ma5'] = df['rzye'].rolling(5, min_periods=1).mean()
@@ -262,7 +292,7 @@ def apply_technical_indicators(df):
     # 融券数据 (做空指标)
     if 'rqye' in df.columns:
         # 5. 融券余额变化率
-        df['short_balance_change'] = df['rqye'].pct_change(fill_method=None)
+        df['short_balance_change'] = df['rqye'].pct_change()
         
         # 6. 融券/融资比 (做空情绪 vs 做多情绪)
         if 'rzye' in df.columns:
@@ -338,4 +368,12 @@ def apply_technical_indicators(df):
         # 龙虎榜资金买入，散户卖出 = 机构抄底信号
         df['smart_money_divergence'] = df['top_net_buy_ratio'] - df['retail_sentiment']
     
+    # --- (v38.1 Fix) 恢复旧模型兼容性别名 ---
+    # 当前模型 (v37) 仍依赖旧名称 vol_ma5 和 volatility_10
+    if 'volatility_10d' in df.columns:
+        df['volatility_10'] = df['volatility_10d']
+    
+    if 'volatility_ma5' in df.columns:
+        df['vol_ma5'] = df['volatility_ma5']
+
     return df
