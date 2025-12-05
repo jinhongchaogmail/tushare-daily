@@ -145,12 +145,20 @@ def get_shap_explanation(model, X):
     t0 = time.time()
     print("🚀 使用 CatBoost 原生接口加速计算 SHAP值...", end="", flush=True)
     pool = cb.Pool(X)
-    # 返回 shape (N, F+1), 最后一列是 base_value
+    # 返回 shape (N, F+1) 或 (N, C, F+1)
     shap_values_raw = model.get_feature_importance(pool, type=cb.EFstrType.ShapValues)
     
-    values = shap_values_raw[:, :-1]
-    base_values = shap_values_raw[:, -1]
-    
+    if shap_values_raw.ndim == 2:
+        # Binary: (N, F+1)
+        values = shap_values_raw[:, :-1]
+        base_values = shap_values_raw[:, -1]
+    else:
+        # Multi-class: (N, C, F+1)
+        # SHAP Explanation expects values as (N, F, C)
+        # shap_values_raw[:, :, :-1] is (N, C, F) -> transpose to (N, F, C)
+        values = shap_values_raw[:, :, :-1].transpose(0, 2, 1)
+        base_values = shap_values_raw[:, :, -1] # (N, C)
+
     # 构造 SHAP Explanation 对象
     explanation = shap.Explanation(
         values=values,
@@ -166,15 +174,19 @@ def plot_shap_summary(explanation, filename_prefix):
     t0 = time.time()
     print("🎨 正在生成 SHAP 摘要图 (Beeswarm)...", end="", flush=True)
     
-    plt.figure(figsize=(10, 8)) # 稍微减小尺寸
+    plt.figure(figsize=(10, 8))
     plt.title(f"SHAP Summary: {filename_prefix}")
-    # max_display=20 限制显示特征数，加快绘图
+    
+    # 如果是多分类，默认展示第一类或提示用户？
+    # summary_plot 自动处理多分类，会显示 stacked bars 或多色点
     shap.summary_plot(explanation, show=False, max_display=20, plot_size=None)
     
     out_file = os.path.join(REPORTS_DIR, f"shap_summary_{filename_prefix}.png")
-    plt.savefig(out_file, bbox_inches='tight', dpi=150) # 降低 DPI 加速保存
-    plt.close()
+    plt.savefig(out_file, bbox_inches='tight', dpi=150)
     print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
+    
+    print("👀 请在弹出的窗口中查看图表 (关闭窗口以继续)...")
+    plt.show()
 
 def plot_shap_bar(explanation, filename_prefix):
     """生成 SHAP 重要性条形图"""
@@ -187,22 +199,42 @@ def plot_shap_bar(explanation, filename_prefix):
     
     out_file = os.path.join(REPORTS_DIR, f"shap_bar_{filename_prefix}.png")
     plt.savefig(out_file, bbox_inches='tight', dpi=150)
-    plt.close()
     print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
+    
+    print("👀 请在弹出的窗口中查看图表 (关闭窗口以继续)...")
+    plt.show()
 
 def plot_latest_waterfall(explanation, filename_prefix):
     """生成最新一条数据的瀑布图 (解释单次预测)"""
     t0 = time.time()
     print("🎨 正在生成最新预测的瀑布图...", end="", flush=True)
     
+    exp = explanation[-1]
+    
+    # 处理多分类模型 (values shape: F x C)
+    if len(exp.values.shape) == 2:
+        # 自动选择输出值最大的类别 (即预测类别)
+        # base_values 可能是 (C,)
+        logits = exp.base_values + exp.values.sum(axis=0)
+        class_idx = np.argmax(logits)
+        
+        # 映射类别名称 (假设 0:跌, 1:平, 2:涨)
+        class_names = {0: '下跌', 1: '震荡', 2: '上涨'}
+        class_name = class_names.get(class_idx, str(class_idx))
+        
+        print(f" [多分类: 展示 '{class_name}' (Class {class_idx})]", end="")
+        exp = exp[:, class_idx]
+    
     plt.figure(figsize=(8, 6))
-    shap.plots.waterfall(explanation[-1], show=False, max_display=15)
+    shap.plots.waterfall(exp, show=False, max_display=15)
     plt.title(f"Latest Prediction Explanation: {filename_prefix}")
     
     out_file = os.path.join(REPORTS_DIR, f"shap_waterfall_{filename_prefix}.png")
     plt.savefig(out_file, bbox_inches='tight', dpi=150)
-    plt.close()
     print(f" 完成 ({time.time()-t0:.2f}s) -> {out_file}")
+    
+    print("👀 请在弹出的窗口中查看图表 (关闭窗口以继续)...")
+    plt.show()
 
 def main():
     setup_plotting_style()
