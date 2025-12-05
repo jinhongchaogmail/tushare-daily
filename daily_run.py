@@ -636,6 +636,45 @@ def merge_and_postprocess(ts_code: str, df_daily, df_basic, df_flow, df_margin=N
             block_agg = block_agg.drop(columns=dup_cols)
         df_merge = pd.merge(df_merge, block_agg, on=merge_keys, how='left')
 
+    # --- (v37 Fix) 确保龙虎榜/大宗/融资融券字段存在 (缺失补0) ---
+    # 即使该股票近期无上榜记录，也需要这些列存在以便特征工程生成 "0" 值特征
+    
+    # 1. 龙虎榜字段
+    top_cols = ['top_net_amount', 'top_buy_amount', 'top_sell_amount', 'top_count']
+    for col in top_cols:
+        if col not in df_merge.columns:
+            df_merge[col] = 0.0
+        else:
+            df_merge[col] = df_merge[col].fillna(0.0)
+            
+    # 2. 大宗交易字段
+    block_cols = ['block_vol', 'block_amount', 'block_count']
+    for col in block_cols:
+        if col not in df_merge.columns:
+            df_merge[col] = 0.0
+        else:
+            df_merge[col] = df_merge[col].fillna(0.0)
+            
+    # block_avg_price 特殊处理: 无交易时设为收盘价 (使折溢价率为0)
+    if 'block_avg_price' not in df_merge.columns:
+        if 'close' in df_merge.columns:
+            df_merge['block_avg_price'] = df_merge['close']
+        else:
+            df_merge['block_avg_price'] = 0.0
+    else:
+        if 'close' in df_merge.columns:
+            df_merge['block_avg_price'] = df_merge['block_avg_price'].fillna(df_merge['close'])
+        else:
+            df_merge['block_avg_price'] = df_merge['block_avg_price'].fillna(0.0)
+
+    # 3. 融资融券字段 (若缺失则补0，假设非标的或无数据)
+    margin_cols = ['rzye', 'rqye', 'rzmre', 'rzche', 'rqmcl', 'rqchl', 'rzrqye']
+    for col in margin_cols:
+        if col not in df_merge.columns:
+            df_merge[col] = 0.0
+        else:
+            df_merge[col] = df_merge[col].fillna(0.0)
+
     df_merge = df_merge.sort_values('trade_date').reset_index(drop=True)
     try:
         df_merge['trade_date'] = pd.to_datetime(df_merge['trade_date'], format="%Y%m%d")
