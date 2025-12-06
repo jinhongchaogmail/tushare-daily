@@ -100,14 +100,21 @@ def get_model_metadata():
             pass
     return meta
 
-def get_stock_link(ts_code):
-    """生成雪球个股链接 (Markdown格式)"""
+def get_stock_link(ts_code, html=False):
+    """生成雪球个股链接
+    Args:
+        ts_code: 股票代码 (如 000001.SZ)
+        html: True 返回 HTML <a> 标签，False 返回 Markdown 链接
+    """
     # 000001.SZ -> SZ000001
     try:
         if '.' in ts_code:
             code, market = ts_code.split('.')
             xq_code = f"{market}{code}"
-            return f"[{ts_code}](https://xueqiu.com/S/{xq_code})"
+            url = f"https://xueqiu.com/S/{xq_code}"
+            if html:
+                return f'<a href="{url}">{code}</a>'
+            return f"[{ts_code}]({url})"
     except:
         pass
     return ts_code
@@ -277,6 +284,107 @@ def predict_stock(ts_code, df):
         import traceback
         traceback.print_exc()
 
+
+def generate_html_report(df_long, df_short, today_str, model_meta, missing_features_info, html_path):
+    """生成 HTML 格式报告 (邮件友好，手机适配)"""
+    
+    def df_to_html_table(df):
+        """将 DataFrame 转换为紧凑的 HTML 表格，代码列可点击"""
+        if df.empty:
+            return "<p>无符合条件的机会。</p>"
+        
+        # 复制并处理链接列
+        df_html = df.copy()
+        if '代码' in df_html.columns:
+            # 提取原始代码并生成 HTML 链接
+            df_html['代码'] = df_html['代码'].apply(lambda x: _md_to_html_link(x))
+        
+        # 精简列名（手机友好）
+        col_rename = {
+            '上涨概率': '涨%',
+            '下跌概率': '跌%',
+            '波动率': '波动',
+            '预期收益': '预期',
+            '建议仓位': '仓位'
+        }
+        df_html = df_html.rename(columns=col_rename)
+        
+        # 移除不必要的列
+        cols_to_remove = ['日期', '理由']
+        df_html = df_html.drop(columns=[c for c in cols_to_remove if c in df_html.columns], errors='ignore')
+        
+        html = df_html.to_html(index=False, escape=False, classes='compact-table')
+        return html
+    
+    def _md_to_html_link(md_link):
+        """将 Markdown 链接转为 HTML <a> 标签"""
+        import re
+        match = re.match(r'\[([^\]]+)\]\(([^)]+)\)', md_link)
+        if match:
+            text, url = match.groups()
+            # 只显示代码部分（如 000001），不显示 .SZ
+            code_short = text.split('.')[0] if '.' in text else text
+            return f'<a href="{url}" style="color:#1a73e8;text-decoration:none;">{code_short}</a>'
+        return md_link
+    
+    params = model_meta.get('params', {})
+    vol_mult = params.get('vol_multiplier_best', 'N/A')
+    if isinstance(vol_mult, float):
+        vol_mult = f"{vol_mult:.4f}"
+    
+    html_content = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略报告 {today_str}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; margin: 8px; background: #f5f5f5; }}
+        h1 {{ font-size: 16px; color: #333; margin: 8px 0; }}
+        h2 {{ font-size: 14px; color: #555; margin: 12px 0 6px 0; border-bottom: 1px solid #ddd; padding-bottom: 4px; }}
+        .meta {{ font-size: 11px; color: #666; margin: 4px 0; }}
+        .compact-table {{ border-collapse: collapse; width: 100%; font-size: 11px; }}
+        .compact-table th {{ background: #4a90d9; color: white; padding: 4px 6px; text-align: left; white-space: nowrap; }}
+        .compact-table td {{ padding: 3px 6px; border-bottom: 1px solid #eee; white-space: nowrap; }}
+        .compact-table tr:nth-child(even) {{ background: #f9f9f9; }}
+        .compact-table tr:hover {{ background: #e8f4ff; }}
+        .signal-long {{ color: #d32f2f; font-weight: bold; }}
+        .signal-short {{ color: #388e3c; font-weight: bold; }}
+        .warn {{ background: #fff3cd; padding: 6px; border-radius: 4px; margin: 6px 0; font-size: 11px; }}
+        .ok {{ background: #d4edda; padding: 6px; border-radius: 4px; margin: 6px 0; font-size: 11px; }}
+    </style>
+</head>
+<body>
+    <h1>📈 策略报告 ({today_str})</h1>
+    <div class="meta">模型: CatBoost v38 | 训练: {model_meta.get('train_time', '未知')} | 波动乘数: {vol_mult}</div>
+'''
+    
+    # 系统状态
+    if missing_features_info:
+        if missing_features_info['missing']:
+            html_content += f'<div class="warn">⚠️ 缺失数据源: {", ".join(missing_features_info["missing"])}</div>'
+        else:
+            html_content += '<div class="ok">✅ 数据源完整</div>'
+    
+    # 统计
+    html_content += f'<div class="meta">入选: {len(df_long) + len(df_short)} (多:{len(df_long)} 空:{len(df_short)})</div>'
+    
+    # 多头表格
+    html_content += '<h2>🔴 多头机会</h2>'
+    html_content += df_to_html_table(df_long.head(50))
+    
+    # 空头表格
+    html_content += '<h2>🟢 空头机会</h2>'
+    html_content += df_to_html_table(df_short.head(50))
+    
+    html_content += '''
+</body>
+</html>'''
+    
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    print(f"✅ HTML报告已生成: {html_path}", flush=True)
+
 def generate_report(missing_features_info=None):
     """生成预测报告 (分多空展示)"""
     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -301,6 +409,11 @@ def generate_report(missing_features_info=None):
         print(f"多头机会: {len(df_long)} | 空头机会: {len(df_short)}", flush=True)
         
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
+        
+        # --- 生成 HTML 版本 (邮件友好，手机适配) ---
+        html_path = report_path.replace(".md", ".html")
+        generate_html_report(df_long_display, df_short_display, today_str, model_meta, missing_features_info, html_path)
+        
         with open(report_path, "w") as f:
             f.write(f"# 📈 每日量化策略报告 ({today_str})\n\n")
             
