@@ -63,7 +63,7 @@ balance:
   weights:
     down: 1.0
     flat: 2.0
-    up: 1.0
+    up: 2.0  # 提高上涨类权重，以改善其召回率
 
 # 训练参数
 training:

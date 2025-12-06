@@ -4,7 +4,7 @@
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from daily_run import list_main_board_cs, get_hist
-from shared.features import apply_technical_indicators
+from features_raw import apply_technical_indicators
 import pandas as pd
 import random
 

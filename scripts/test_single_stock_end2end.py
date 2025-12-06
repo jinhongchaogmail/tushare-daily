@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from daily_run import get_hist, TUSHARE_TOKEN, TS_SERVER, TS_ENV
-from shared.features import apply_technical_indicators
+from features_raw import apply_technical_indicators
 import pandas as pd
 
 STOCK = '000001.SZ'

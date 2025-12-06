@@ -2,8 +2,8 @@
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from daily_run import get_hist, pro
-from shared.financials import fetch_financials, align_financials_to_daily
-from shared.features import apply_technical_indicators
+from financials import fetch_financials, align_financials_to_daily
+from features_raw import apply_technical_indicators
 
 CODE = '000001.SZ'
 

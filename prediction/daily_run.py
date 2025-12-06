@@ -4,20 +4,79 @@ import time
 import signal
 import argparse
 
-# 导入pandas等库
+python daily_run.py --helppython daily_run.py --helppython daily_run.py --helppython daily_run.py --helppython daily_run.py --helppython daily_run.py --help# 检查是否请求了帮助
+if '-h' in sys.argv or '--help' in sys.argv:
+    parser = argparse.ArgumentParser(
+        description='Tushare每日股票预测系统 - 基于机器学习的A股量化分析工具',
+        add_help=False
+    )
+    parser.add_argument(
+        '--batch-size', 
+        type=int, 
+        default=10, 
+        help='每批次处理股票数量 (默认: 10)'
+    )
+    parser.add_argument(
+        '--stocks', 
+        type=str, 
+        help='指定要处理的股票代码，用逗号分隔 (例如: 000001.SZ,000002.SZ)'
+    )
+    parser.add_argument(
+        '--skip-financials', 
+        action='store_true',
+        help='跳过财务数据获取'
+    )
+    parser.add_argument(
+        '--parallel-workers', 
+        type=int, 
+        default=2,
+        help='并行处理线程数 (默认: 2)'
+    )
+    parser.add_argument(
+        '--output-dir', 
+        type=str, 
+        default='data',
+        help='数据文件输出目录 (默认: data)'
+    )
+    parser.add_argument(
+        '--start-date', 
+        type=str, 
+        help='数据获取起始日期 (格式: YYYYMMDD)'
+    )
+    parser.add_argument(
+        '--skip-predictions', 
+        action='store_true',
+        help='跳过模型预测，仅下载数据'
+    )
+    parser.print_help()
+    sys.exit(0)
+
+# 导入所需的Python库
 import pandas as pd
 import requests
 import xcsc_tushare as ts
 from datetime import datetime, timedelta
 
-TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")
-TS_SERVER = "http://116.128.206.39:7172"
-TS_ENV = "prd"
-START_DATE = "20220101"
-OUT_DIR = "data"
-MODEL_PATH = 'models/catboost_final_model.cbm'
-PARAMS_PATH = 'models/final_model_params.json'
-MIN_RETURN_THRESHOLD = 0.03
+# 添加当前目录到sys.path，确保能正确导入本地模块
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 导入本地模块
+try:
+    import data_fetcher
+    import downloader
+    import financials
+except ImportError as e:
+    print(f"⚠️ 警告：无法导入本地模块 ({e})", flush=True)
+
+# 配置参数
+TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN")          # Tushare令牌
+TS_SERVER = "http://116.128.206.39:7172"                # Tushare服务器地址
+TS_ENV = "prd"                                           # 运行环境
+START_DATE = "20220101"                                  # 默认起始日期
+OUT_DIR = "../data"                                      # 输出目录
+MODEL_PATH = '../models/catboost_final_model.cbm'        # 模型文件路径
+PARAMS_PATH = '../models/final_model_params.json'        # 模型参数文件路径
+MIN_RETURN_THRESHOLD = 0.03                              # 最小收益率阈值
 
 # 动态导入特征工程逻辑 (优先使用模型绑定的 frozen_features.py)
 # 这样可以保证预测时使用的特征计算逻辑与模型训练时完全一致，
@@ -26,6 +85,10 @@ HAS_FEATURE_ENGINE = False
 apply_technical_indicators = None
 
 def load_feature_engineering():
+    """
+    加载特征工程模块
+    优先加载模型目录下的 frozen_features.py，如果不存在则回退到 prediction/features.py
+    """
     global apply_technical_indicators, HAS_FEATURE_ENGINE
     
     # 1. 尝试加载模型目录下的 frozen_features.py (模型伴生代码)
@@ -42,22 +105,22 @@ def load_feature_engineering():
             print(f"✅ 已加载模型伴生特征代码: {frozen_features_path}", flush=True)
             return
         except Exception as e:
-            print(f"⚠️ 加载 frozen_features.py 失败: {e}，将回退到 shared/features.py", flush=True)
+            print(f"⚠️ 加载 frozen_features.py 失败: {e}，将回退到 prediction/features.py", flush=True)
 
-    # 2. 回退到项目默认的 shared/features.py
+    # 2. 回退到prediction目录下的 features.py
     try:
-        sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared'))
+        sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.'))
         from features import apply_technical_indicators as shared_ati
         apply_technical_indicators = shared_ati
         HAS_FEATURE_ENGINE = True
-        print("✅ 已加载默认特征代码: shared/features.py", flush=True)
+        print("✅ 已加载默认特征代码: prediction/features.py", flush=True)
     except ImportError as e:
         print(f"⚠️ 警告：无法导入特征工程 ({e})，将跳过预测功能", flush=True)
         HAS_FEATURE_ENGINE = False
 
 load_feature_engineering()
 
-# 尝试导入 CatBoost
+# 尝试导入 CatBoost 机器学习库
 try:
     import catboost as cb
     import json
@@ -66,30 +129,58 @@ except ImportError:
     print("⚠️ 警告：未安装 catboost，将跳过预测功能", flush=True)
     HAS_MODEL = False
 
-# 全局变量
-model = None
-vol_multiplier = 0.89
-report = []
-all_predictions = [] # 存储所有预测结果，用于强制输出
-count_debug = 0
+# 全局变量定义
+model = None                # 预测模型
+vol_multiplier = 0.89       # 波动率乘数
+report = []                 # 预测报告
+all_predictions = []        # 存储所有预测结果，用于强制输出
+count_debug = 0             # 调试计数器
+running = True              # 控制程序运行状态
+pro = None                  # Tushare API 客户端
 
+# 检查Tushare令牌是否存在
 if not TUSHARE_TOKEN:
-    raise RuntimeError("Missing env TUSHARE_TOKEN")
+    raise RuntimeError("缺少Tushare令牌环境变量")
 
+# 初始化Tushare客户端
 ts.set_token(TUSHARE_TOKEN)
 pro = ts.pro_api(env=TS_ENV, server=TS_SERVER)
 
+# 定义数据字段
 # 1. 基础行情字段 (包含交易状态)
 fields_daily = "ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,volume,amount,adj_factor,trade_status"
 # 2. 每日指标字段 (注意 XCSC 特有字段名: tot_mv, turn)
 fields_daily_basic = "ts_code,trade_date,tot_mv,mv,turn,pe,pe_ttm,pb_new,free_turnover,high_52w,low_52w"
 # 3. 资金流向字段
 fields_moneyflow = "ts_code,trade_date,buy_sm_vol,sell_sm_vol,buy_md_vol,sell_md_vol,buy_lg_vol,sell_lg_vol,buy_elg_vol,sell_elg_vol,net_mf_vol,net_mf_amount"
-# 4. (v37 新增) 融资融券字段
+# 4. 融资融券字段
 fields_margin = "ts_code,trade_date,rzye,rqye,rzmre,rzche,rqmcl,rqchl,rzrqye"
 
+# 数据文件路径（相对于工作目录）
+DAILY_DATA_FILE = "../data/daily.parquet"
+BASIC_DATA_FILE = "../data/daily_basic.parquet"
+MONEYFLOW_DATA_FILE = "../data/moneyflow.parquet"
+MARGIN_DATA_FILE = "../data/margin_detail.parquet"
+FINANCIALS_FILE = "../data/financials.parquet"
+
+def signal_handler(signum, frame):
+    """
+    信号处理函数
+    处理用户中断信号（如Ctrl+C），实现程序优雅退出
+    """
+    global running
+    print("\n⚠️ 收到中断信号，正在优雅退出...", flush=True)
+    running = False
+
+# 注册信号处理器，捕获Ctrl+C等中断信号
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
 def get_model_metadata():
-    """获取模型元数据 (训练时间、参数等)"""
+    """
+    获取模型元数据信息
+    包括模型训练时间、参数配置等信息
+    """
     meta = {'train_time': '未知', 'params': {}}
     if os.path.exists(MODEL_PATH):
         mtime = os.path.getmtime(MODEL_PATH)
@@ -104,8 +195,11 @@ def get_model_metadata():
     return meta
 
 def get_stock_link(ts_code, html=False):
-    """生成雪球个股链接
-    Args:
+    """
+    生成雪球个股链接
+    方便在报告中点击跳转到雪球网查看个股详情
+    
+    参数:
         ts_code: 股票代码 (如 000001.SZ)
         html: True 返回 HTML <a> 标签，False 返回 Markdown 链接
     """
@@ -122,34 +216,49 @@ def get_stock_link(ts_code, html=False):
         pass
     return ts_code
 
-def init_model():
-    """初始化预测模型"""
+def load_model_and_params():
+    """
+    加载模型和参数
+    """
     global model, vol_multiplier
     
-    if not HAS_MODEL or not HAS_FEATURE_ENGINE:
+    # 检查模型文件是否存在
+    if not os.path.exists(MODEL_PATH):
+        print(f"❌ 模型文件不存在: {MODEL_PATH}", flush=True)
         return False
     
-    if not os.path.exists(MODEL_PATH):
-        print(f"⚠️ 未找到模型文件: {MODEL_PATH}，跳过预测功能", flush=True)
-        return False
-
+    # 加载模型
     try:
         model = cb.CatBoostClassifier()
         model.load_model(MODEL_PATH)
-        
-        if os.path.exists(PARAMS_PATH):
-            with open(PARAMS_PATH, 'r') as f:
-                params = json.load(f)
-                vol_multiplier = params.get('vol_multiplier_best', 0.89)
-        
-        print(f"✅ 模型加载成功，波动率乘数: {vol_multiplier:.4f}", flush=True)
-        return True
+        print(f"✅ 模型加载成功: {MODEL_PATH}", flush=True)
     except Exception as e:
         print(f"❌ 模型加载失败: {e}", flush=True)
         return False
+    
+    # 加载模型参数
+    if os.path.exists(PARAMS_PATH):
+        try:
+            with open(PARAMS_PATH, 'r') as f:
+                params = json.load(f)
+            vol_multiplier = params.get('vol_multiplier_best', 0.89)
+            print(f"✅ 模型参数加载成功，波动率乘数: {vol_multiplier}", flush=True)
+        except Exception as e:
+            print(f"⚠️ 模型参数加载失败: {e}，使用默认值: {vol_multiplier}", flush=True)
+    else:
+        print(f"⚠️ 模型参数文件不存在: {PARAMS_PATH}，使用默认值: {vol_multiplier}", flush=True)
+    
+    return True
 
 def predict_stock(ts_code, df):
-    """对单只股票进行预测 (多空双向)"""
+    """
+    对单只股票进行涨跌预测
+    支持做多和做空双向预测
+    
+    参数:
+        ts_code: 股票代码
+        df: 股票历史数据DataFrame
+    """
     global report, count_debug, all_predictions
     
     if model is None or len(df) < 60:
@@ -181,112 +290,105 @@ def predict_stock(ts_code, df):
             print(f"  [{ts_code}] 缺失特征: {missing_features}，跳过", flush=True)
             return
 
-        # 按模型要求的顺序重排特征
-        X_predict = latest_row[model_feature_names]
+        # 准备预测数据
+        X_pred = latest_row[model_feature_names].fillna(0.0)
         
-        prob = model.predict_proba(X_predict)[0]
-        prob_down, prob_flat, prob_up = prob[0], prob[1], prob[2]
+        # 执行预测
+        probabilities = model.predict_proba(X_pred)[0]  # 三分类概率 [跌, 平, 涨]
+        predicted_class = model.predict(X_pred)[0]      # 预测类别 (0:跌, 1:平, 2:涨)
         
-        # 调试输出
-        count_debug += 1
-        # 如果总数少于 200 (调试模式)，则打印所有预测结果
-        if len(report) < 200 or count_debug <= 5 or count_debug % 200 == 0 or prob_up > 0.25:
-            print(f"  [{ts_code}] 预测: 跌{prob_down:.2f} 平{prob_flat:.2f} 涨{prob_up:.2f}", flush=True)
-
-        # 策略逻辑
-        current_vol = latest_row['volatility_factor'].values[0]
-        if pd.isna(current_vol): 
-            current_vol = 0.02
+        prob_down, prob_neutral, prob_up = probabilities
         
-        implied_return = current_vol * vol_multiplier
-        signal = "⚪ 观望"
-        position = 0.0
-        reason = ""
-        is_candidate = False
-        
-        # 收集所有预测结果 (Debug用)
+        # 保存预测结果用于调试
         all_predictions.append({
-            '代码': ts_code,
-            '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
-            '信号': "Debug",
-            '上涨概率': f"{prob_up:.1%}",
-            '下跌概率': f"{prob_down:.1%}",
-            '波动率': f"{current_vol:.1%}",
-            '预期收益': f"{implied_return:.1%}",
-            '建议仓位': "0.0%",
-            '理由': "Debug记录",
-            'prob_up_raw': prob_up,
-            'prob_down_raw': prob_down,
-            'max_prob': max(prob_up, prob_down)
+            'ts_code': ts_code,
+            'prob_up': prob_up,
+            'prob_neutral': prob_neutral,
+            'prob_down': prob_down,
+            'predicted_class': predicted_class,
+            'date': current_date
         })
         
-        # --- 阈值设置 (基于最新模型分析: Down 准, Up 保守) ---
-        THRESHOLD_WATCH_UP = 0.28    # 降低做多门槛
-        THRESHOLD_STRONG_UP = 0.38   # 强力做多门槛
-        THRESHOLD_WATCH_DOWN = 0.35  # 做空门槛
-        THRESHOLD_STRONG_DOWN = 0.45 # 强力做空门槛
-
-        # --- 1. 做多信号 (Long) ---
-        if prob_up > prob_down and prob_up > THRESHOLD_WATCH_UP:
-            signal = "🔵 关注多"
-            reason = f"看涨({prob_up:.1%})"
-            is_candidate = True
+        print(f"  [{ts_code}] 预测: 跌{prob_down:.2f} 平{prob_neutral:.2f} 涨{prob_up:.2f}", flush=True)
+        
+        # 判断交易信号
+        signal = ""
+        reason = ""
+        
+        # 做多信号: 涨的概率大于阈值，且明显高于其他两种情况
+        if prob_up > 0.45 and prob_up > prob_down * 1.2:
+            signal = "🔴 强力做多"
+            reason = f"高确信度({prob_up*100:.1f}%)"
+        elif prob_up > 0.40 and prob_up > prob_down:
+            signal = "🟠 做多"
+            reason = f"中等确信度({prob_up*100:.1f}%)"
             
-            # 强力买入条件
-            if prob_up > THRESHOLD_STRONG_UP and prob_up > prob_flat:
-                if implied_return > MIN_RETURN_THRESHOLD:
-                    signal = "🔴 强力做多"
-                    position = min(1.0, 0.02 / (current_vol + 1e-5))
-                    reason = f"高胜率({prob_up:.0%}) 高赔率(>{implied_return:.1%})"
-                else:
-                    signal = "🟠 潜伏做多" # 胜率高但波动率低
-                    reason = f"高胜率({prob_up:.0%}) 低波动"
-
-        # --- 2. 做空信号 (Short) ---
-        elif prob_down > prob_up and prob_down > THRESHOLD_WATCH_DOWN:
-            signal = "🟡 关注空"
-            reason = f"看跌({prob_down:.1%})"
-            is_candidate = True
+        # 做空信号: 跌的概率大于阈值，且明显高于其他两种情况
+        elif prob_down > 0.45 and prob_down > prob_up * 1.2:
+            signal = "🟢 强力做空"
+            reason = f"高确信度({prob_down*100:.1f}%)"
+        elif prob_down > 0.40 and prob_down > prob_up:
+            signal = "🔵 做空"
+            reason = f"中等确信度({prob_down*100:.1f}%)"
             
-            if prob_down > THRESHOLD_STRONG_DOWN and prob_down > prob_flat:
-                signal = "🟢 强力做空"
-                reason = f"高确信度({prob_down:.1%})"
-                position = min(1.0, 0.02 / (current_vol + 1e-5))
-
-        if is_candidate:
-            # 获取最新收盘价
-            close_price = df.iloc[-1]['close'] if 'close' in df.columns else 0.0
+        # 输出交易机会
+        if signal:
+            print(f"  !!! 发现机会 [{ts_code}]: {signal} - {reason} ", flush=True)
             
-            # 检查龙虎榜状态
-            top_list_info = ""
-            if 'top_count' in latest_row.columns and latest_row['top_count'].values[0] > 0:
-                top_list_info = "🔥"
-            
-            item = {
-                '代码': get_stock_link(ts_code), # 带链接的代码
-                '日期': pd.to_datetime(current_date).strftime('%Y-%m-%d'),
-                '收盘': f"{close_price:.2f}",
-                '龙虎榜': top_list_info,
+            # 添加到报告
+            report.append({
+                '股票代码': get_stock_link(ts_code, html=False),
                 '信号': signal,
-                '上涨概率': f"{prob_up:.1%}",
-                '下跌概率': f"{prob_down:.1%}",
-                '波动率': f"{current_vol:.1%}",
-                '预期收益': f"{implied_return:.1%}",
-                '建议仓位': f"{position:.1%}",
                 '理由': reason,
+                '预测概率': f"跌:{prob_down:.2f} 平:{prob_neutral:.2f} 涨:{prob_up:.2f}",
                 'prob_up_raw': prob_up,
                 'prob_down_raw': prob_down,
-                'max_prob': max(prob_up, prob_down)
-            }
-            report.append(item)
-            if "强力" in signal:
-                print(f"  !!! 发现机会 [{ts_code}]: {signal} - {reason} {top_list_info}", flush=True)
+                'max_prob': max(prob_up, prob_down),
+                '日期': current_date
+            })
 
+        # 调试输出前N个预测结果
+        count_debug += 1
+        if count_debug <= 5:
+            print(f"  [{ts_code}] 调试: 类别={predicted_class} 概率={probabilities}", flush=True)
+            
     except Exception as e:
-        print(f"❌ [{ts_code}] 预测出错: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
+        print(f"  ❌ [{ts_code}] 预测出错: {e}", flush=True)
 
+def predict_stocks(df_dict, stocks_list):
+    """
+    对股票进行预测
+    """
+    global model, vol_multiplier, report, all_predictions, count_debug
+    
+    # 确保输出目录存在
+    predictions_dir = "../daily_prediction"
+    os.makedirs(predictions_dir, exist_ok=True)
+    
+    # 报告文件路径
+    report_file = os.path.join(predictions_dir, f"daily_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+    all_predictions_file = os.path.join(predictions_dir, f"all_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+    
+    # 遍历每只股票并进行预测
+    for ts_code in stocks_list:
+        if ts_code in df_dict:
+            predict_stock(ts_code, df_dict[ts_code])
+        else:
+            print(f"  [{ts_code}] 未找到数据，跳过预测", flush=True)
+    
+    # 保存预测报告
+    if report:
+        df_report = pd.DataFrame(report)
+        df_report.to_csv(report_file, index=False)
+        print(f"✅ 预测报告已保存: {report_file}", flush=True)
+    else:
+        print("ℹ️ 今日无符合条件的交易机会", flush=True)
+        
+    # 保存所有预测结果
+    if all_predictions:
+        df_all = pd.DataFrame(all_predictions)
+        df_all.to_csv(all_predictions_file, index=False)
+        print(f"✅ 所有预测结果已保存: {all_predictions_file}", flush=True)
 
 def generate_html_report(df_long, df_short, today_str, model_meta, missing_features_info, html_path):
     """生成 HTML 格式报告 (邮件友好，手机适配)"""
@@ -871,50 +973,26 @@ def merge_and_postprocess(ts_code: str, df_daily, df_basic, df_flow, df_margin=N
 
 def parse_args():
     """解析命令行参数"""
-    parser = argparse.ArgumentParser(description='Tushare Daily Stock Prediction')
-    parser.add_argument('--batch-size', type=int, default=10, 
-                        help='Batch size for processing stocks (default: 10)')
-    parser.add_argument('--stocks', type=str, 
-                        help='Comma-separated list of stock codes to process (e.g., 000001.SZ,000002.SZ)')
-    parser.add_argument('--skip-financials', action='store_true',
-                        help='Skip financial data fetching')
-    parser.add_argument('--parallel-workers', type=int, default=2,
-                        help='Number of parallel workers (default: 2)')
-    parser.add_argument('--output-dir', type=str, default='data',
-                        help='Output directory for parquet files (default: data)')
-    parser.add_argument('--start-date', type=str, 
-                        help='Start date for data fetching (YYYYMMDD)')
-    parser.add_argument('--skip-predictions', action='store_true',
-                        help='Skip model predictions, only download data')
-    parser.add_argument('--help', '-h', action='help', 
-                        help='Show this help message and exit')
-    
+    parser = argparse.ArgumentParser(description='Tushare每日股票预测系统 - 基于机器学习的A股量化分析工具')
+    parser.add_argument('--batch-size', type=int, default=10, help='每批次处理股票数量 (默认: 10)')
+    parser.add_argument('--stocks', type=str, help='指定要处理的股票代码，用逗号分隔 (例如: 000001.SZ,000002.SZ)')
+    parser.add_argument('--skip-financials', action='store_true', help='跳过财务数据获取')
+    parser.add_argument('--parallel-workers', type=int, default=2, help='并行处理线程数 (默认: 2)')
+    parser.add_argument('--output-dir', type=str, default='../data', help='数据文件输出目录 (默认: ../data)')
+    parser.add_argument('--start-date', type=str, help='数据获取起始日期 (格式: YYYYMMDD)')
+    parser.add_argument('--skip-predictions', action='store_true', help='跳过模型预测，仅下载数据')
     return parser.parse_args()
 
 
 def main():
+    """
+    主函数 - 程序入口点
+    负责协调整个股票数据获取和预测流程
+    """
     global running, OUT_DIR, START_DATE, SKIP_PREDICTIONS
     
     # 解析命令行参数
-    parser = argparse.ArgumentParser(description='Tushare Daily Stock Prediction', add_help=False)
-    parser.add_argument('--batch-size', type=int, default=10, 
-                        help='Batch size for processing stocks (default: 10)')
-    parser.add_argument('--stocks', type=str, 
-                        help='Comma-separated list of stock codes to process (e.g., 000001.SZ,000002.SZ)')
-    parser.add_argument('--skip-financials', action='store_true',
-                        help='Skip financial data fetching')
-    parser.add_argument('--parallel-workers', type=int, default=2,
-                        help='Number of parallel workers (default: 2)')
-    parser.add_argument('--output-dir', type=str, default='data',
-                        help='Output directory for parquet files (default: data)')
-    parser.add_argument('--start-date', type=str, 
-                        help='Start date for data fetching (YYYYMMDD)')
-    parser.add_argument('--skip-predictions', action='store_true',
-                        help='Skip model predictions, only download data')
-    parser.add_argument('-h', '--help', action='help', 
-                        help='Show this help message and exit')
-    
-    args = parser.parse_args()
+    args = parse_args()
     
     # 更新全局变量
     OUT_DIR = args.output_dir
@@ -1178,24 +1256,25 @@ def main():
 
     # 输出总耗时统计
     print(f"\n📊 耗时统计:", flush=True)
-    print(f"    下载总耗时: {total_download_time:.2f}s", flush=True)
-    print(f"    处理总耗时: {total_process_time:.2f}s", flush=True)
-    print(f"    合计: {total_download_time + total_process_time:.2f}s", flush=True)
+    print(f"    下载总耗时: {total_download_time:.2f}秒", flush=True)
+    print(f"    处理总耗时: {total_process_time:.2f}秒", flush=True)
+    print(f"    合计: {total_download_time + total_process_time:.2f}秒", flush=True)
 
+    # 如果有跳过的股票，将其保存到CSV文件中
     if skipped:
-        pd.DataFrame(skipped, columns=["ts_code"]).to_csv("skipped.csv", index=False)
+        pd.DataFrame(skipped, columns=["股票代码"]).to_csv("skipped.csv", index=False)
         print(f"⚠️ 跳过 {len(skipped)} 个股票，已写入 skipped.csv", flush=True)
 
     # 生成预测报告（可选，SKIP_PREDICTIONS=1 时跳过）
     if SKIP_PREDICTIONS:
-        print("ℹ️ SKIP_PREDICTIONS=1，已跳过预测与报告生成", flush=True)
+        print("ℹ️ 已设置SKIP_PREDICTIONS=1，已跳过预测与报告生成", flush=True)
         # 生成占位报告，防止 GitHub Actions 报错
         report_path = "reports/strategy_report.md"
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
         with open(report_path, "w") as f:
             f.write("# 每日量化策略报告 (已跳过)\n\n")
             f.write(f"**日期**: {datetime.now().strftime('%Y-%m-%d')}\n\n")
-            f.write("ℹ️ `SKIP_PREDICTIONS=1` 已设置，本次运行跳过了模型预测和详细报告生成。\n")
+            f.write("ℹ️ 已设置 `SKIP_PREDICTIONS=1` ，本次运行跳过了模型预测和详细报告生成。\n")
         print(f"✅ 已生成占位报告: {report_path}", flush=True)
     else:
         if model_enabled and model is not None:
@@ -1205,22 +1284,24 @@ def main():
                 'missing': []
             }
             
+            # 检查特征工程模块是否存在
             if not HAS_FEATURE_ENGINE:
                 missing_features_info['status'] = '严重降级 (无特征工程)'
                 missing_features_info['missing'].append("特征工程模块 (shared/features.py)")
             
+            # 检查基本面数据是否可用
             if fields_daily_basic is None:
                 missing_features_info['status'] = '降级 (缺失基本面)'
                 missing_features_info['missing'].append("基本面数据 (daily_basic: free_turnover, pe, pb)")
                 
-            # 检查是否有资金流数据 (通过检查 report 中的特征列，或者简单假设如果配置了就有)
-            # 这里简单检查配置
+            # 检查资金流数据是否可用
             if not fields_moneyflow:
                  missing_features_info['missing'].append("资金流数据 (moneyflow)")
             
+            # 生成最终报告
             generate_report(missing_features_info)
 
-    print("🎉 RUN_DONE: 所有任务完成", flush=True)
+    print("🎉 所有任务已完成", flush=True)
 
 if __name__ == "__main__":
     main()

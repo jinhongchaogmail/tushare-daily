@@ -1,0 +1,33 @@
+{
+  "timestamp": "2025-12-06T17:03:49.450426",
+  "current_branch": "ci/daily-run-clean",
+  "last_commit": {
+    "hash": "aaaeef2e0712a6c36532114eecb992ea8e17e763",
+    "message": "feat: 更新主模型与特征工程为最新训练结果（20251205_174235）",
+    "author": "Jin Hongchao",
+    "date": "Sat Dec 6 10:57:05 2025 +0800"
+  },
+  "uncommitted_changes": "M README.md\n M daily_run.py\n M scripts/test_batch_small.py\n M scripts/test_financials_fetch.py\n M scripts/test_single_stock_end2end.py\n M training/config.yaml\n M training/train.py\n?? daily_prediction/\n?? data_fetcher.py\n?? downloader.py\n?? financials.py\n?? github_demo/\n?? prediction/",
+  "recent_commits": [
+    {
+      "hash": "aaaeef2",
+      "message": "feat: 更新主模型与特征工程为最新训练结果（20251205_174235）"
+    },
+    {
+      "hash": "815bec9",
+      "message": "feat: 优化邮件报告格式 - HTML版本支持点击跳转，表格紧凑适配手机"
+    },
+    {
+      "hash": "22d5673",
+      "message": "fix: 修复 merge trade_date 类型不一致问题，升级 numba 到 0.62.1"
+    },
+    {
+      "hash": "8585bff",
+      "message": "feat: add relative strength (Alpha/Beta) features to solve isolation problem"
+    },
+    {
+      "hash": "dfe3610",
+      "message": "perf: optimize SHAP summary plot for multi-class models by focusing on 'Up' class"
+    }
+  ]
+}

@@ -166,7 +166,8 @@ def bootstrap_dependencies():
         print("\n【步骤 2/3】: 所有包均已存在。")
         print("【步骤 3/3】: 跳过安装。")
         print("\n【信息】:所有依赖已成功加载。")
-
+import os
+import sys
 
 # --- 运行引导程序 ---
 bootstrap_dependencies()
@@ -181,7 +182,7 @@ try:
     from imblearn.under_sampling import RandomUnderSampler
     
     # 添加 shared 到路径以便导入 feature_engineering
-    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'shared'))
+    # sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'shared'))
     try:
         from features import apply_technical_indicators
     except ImportError:
@@ -1014,7 +1015,7 @@ def run_optuna_study(combined_df, base_save_path):
             
             # v26: 手动增强上涨类权重 (Class 1)
             if 1 in weight_map:
-                weight_map[1] = weight_map[1] * 1.2
+                weight_map[1] = weight_map[1] * 2.0  # 增加上涨类权重以提高召回率
             
             # 归一化权重
             max_weight = max(weight_map.values())

@@ -1,8 +1,8 @@
-# Tushare Daily Stock Prediction
+# A股量化预测系统
 
-这是一个基于 GitHub Actions 的每日 A 股量化预测系统。
+这是一个基于Tushare数据的A股量化预测系统，使用CatBoost机器学习模型进行股票涨跌预测。
 
-## 项目结构
+## 目录结构
 
 - **.github/workflows/**: GitHub Actions 工作流配置
   - `run.yml`: 每日定时运行的任务 (下载数据 -> 预测 -> 发送邮件)
@@ -10,11 +10,41 @@
   - `train.py`: 核心训练脚本 (Optuna + CatBoost)
   - `config.yaml`: 训练配置文件
   - `v16_OPTIMIZATION_ARCHIVE.md`: 历史优化文档归档
-- **shared/**: 公共模块
+- **prediction/**: 每日预测执行目录
+- **shared/**: 共享模块
   - `features.py`: 统一的特征计算逻辑 (SSOT)
+- **models/**: 训练好的模型文件
+  - `catboost_final_model.cbm`: 最终的CatBoost模型文件
+- **data/**: 数据存储目录
+  - 存放下载的股票数据 (.parquet 格式)
+- **daily_prediction/**: 每日预测结果
+  - 包含每日生成的HTML/Markdown格式报告
+- **optuna_results/**: 模型优化结果
 - **daily_run.py**: 生产环境主程序 (下载 -> 预测 -> 报告)
-- **data/**: 存放下载的股票数据 (.parquet 格式)
-- **optuna_results/**: 训练结果与日志
+
+## 使用方法
+
+### 模型训练
+
+进入 `training` 目录执行训练脚本。
+
+### 每日预测
+
+进入 `prediction` 目录执行预测脚本，或参考 `prediction` 目录中的说明。
+
+## 环境配置
+
+需要配置Tushare Token环境变量：
+
+```bash
+export TUSHARE_TOKEN="your_token_here"
+```
+
+## 依赖安装
+
+```bash
+pip install -r requirements.txt
+```
 
 ## 运行流程
 
