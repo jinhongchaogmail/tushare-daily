@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+
 import pandas as pd
 import requests
 import xcsc_tushare as ts
@@ -892,6 +893,8 @@ def main():
         if not df_benchmark.empty:
             # 确保日期格式一致
             if 'trade_date' in df_merge.columns and 'trade_date' in df_benchmark.columns:
+                # 强制统一类型为 datetime64[ns]
+                df_benchmark['trade_date'] = pd.to_datetime(df_benchmark['trade_date'])
                 # 左连接合并
                 df_merge = pd.merge(df_merge, df_benchmark, on='trade_date', how='left')
                 # 填充缺失值 (如果个股有交易但大盘无数据，虽然罕见)
