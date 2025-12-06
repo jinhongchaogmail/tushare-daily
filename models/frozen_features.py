@@ -368,33 +368,6 @@ def apply_technical_indicators(df):
         # 龙虎榜资金买入，散户卖出 = 机构抄底信号
         df['smart_money_divergence'] = df['top_net_buy_ratio'] - df['retail_sentiment']
     
-    # --- (v39 新增: 相对强弱/Alpha 特征) ---
-    # 解决"孤立预测"问题，引入大盘基准对比
-    if 'benchmark_return' in df.columns and 'pct_chg' in df.columns:
-        # 1. 超额收益 (Alpha Proxy): 个股涨跌幅 - 大盘涨跌幅
-        # 注意: pct_chg 单位通常是 %, benchmark_return 在 daily_run 中已转为小数
-        # 这里需要统一单位。假设 pct_chg 是 0.0x 格式 (如果不是，需 /100)
-        # 检查 pct_chg 量级:
-        # 通常 tushare 的 pct_chg 是 1.5 (=1.5%)，而我们计算的 returns 往往是 0.015
-        # 为了安全，先观察数据。这里假设 pct_chg 是原始 tushare 值 (百分比)，需 /100
-        stock_ret = df['pct_chg'] / 100.0
-        market_ret = df['benchmark_return']
-        
-        df['excess_return'] = stock_ret - market_ret
-        
-        # 2. 相对强弱 (RS) - 20日滚动累计超额收益
-        df['rs_20d'] = df['excess_return'].rolling(20, min_periods=5).sum()
-        
-        # 3. Beta 代理 (个股波动 / 大盘波动) - 简单版
-        # 如果个股波动远大于大盘，说明弹性大
-        stock_vol = stock_ret.rolling(20, min_periods=5).std()
-        market_vol = market_ret.rolling(20, min_periods=5).std()
-        df['beta_proxy'] = stock_vol / (market_vol + 1e-8)
-        
-        # 4. 逆势表现 (大盘跌而个股涨)
-        # 1 = 逆势上涨, 0 = 顺势或下跌
-        df['idiosyncratic_strength'] = ((stock_ret > 0) & (market_ret < -0.005)).astype(int)
-
     # --- (v38.1 Fix) 恢复旧模型兼容性别名 ---
     # 当前模型 (v37) 仍依赖旧名称 vol_ma5 和 volatility_10
     if 'volatility_10d' in df.columns:
