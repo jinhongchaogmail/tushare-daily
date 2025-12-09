@@ -274,7 +274,7 @@ def apply_technical_indicators(df):
     # 融资融券是重要的杠杆资金指标，能反映市场情绪
     if 'rzye' in df.columns:
         # 1. 融资余额变化率 (日度)
-        df['margin_balance_change'] = df['rzye'].pct_change()
+        df['margin_balance_change'] = df['rzye'].pct_change(fill_method=None)
         
         # 2. 融资余额 5日均线
         df['margin_balance_ma5'] = df['rzye'].rolling(5, min_periods=1).mean()
@@ -292,7 +292,7 @@ def apply_technical_indicators(df):
     # 融券数据 (做空指标)
     if 'rqye' in df.columns:
         # 5. 融券余额变化率
-        df['short_balance_change'] = df['rqye'].pct_change()
+        df['short_balance_change'] = df['rqye'].pct_change(fill_method=None)
         
         # 6. 融券/融资比 (做空情绪 vs 做多情绪)
         if 'rzye' in df.columns:
@@ -368,6 +368,26 @@ def apply_technical_indicators(df):
         # 龙虎榜资金买入，散户卖出 = 机构抄底信号
         df['smart_money_divergence'] = df['top_net_buy_ratio'] - df['retail_sentiment']
     
+    # --- (v39 新增: 相对强弱/Alpha 特征) ---
+    # 解决"孤立预测"问题，引入大盘基准对比
+    if 'benchmark_return' in df.columns and 'pct_chg' in df.columns:
+        # 1. 超额收益 (Alpha Proxy): 个股涨跌幅 - 大盘涨跌幅
+        stock_ret = df['pct_chg'] / 100.0
+        market_ret = df['benchmark_return']
+        
+        df['excess_return'] = stock_ret - market_ret
+        
+        # 2. 相对强弱 (RS) - 20日滚动累计超额收益
+        df['rs_20d'] = df['excess_return'].rolling(20, min_periods=5).sum()
+        
+        # 3. Beta 代理 (个股波动 / 大盘波动)
+        stock_vol = stock_ret.rolling(20, min_periods=5).std()
+        market_vol = market_ret.rolling(20, min_periods=5).std()
+        df['beta_proxy'] = stock_vol / (market_vol + 1e-8)
+        
+        # 4. 逆势表现 (大盘跌而个股涨)
+        df['idiosyncratic_strength'] = ((stock_ret > 0) & (market_ret < -0.005)).astype(int)
+
     # --- (v38.1 Fix) 恢复旧模型兼容性别名 ---
     # 当前模型 (v37) 仍依赖旧名称 vol_ma5 和 volatility_10
     if 'volatility_10d' in df.columns:
