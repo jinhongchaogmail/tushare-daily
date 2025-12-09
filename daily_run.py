@@ -72,6 +72,20 @@ vol_multiplier = 0.89
 report = []
 all_predictions = [] # 存储所有预测结果，用于强制输出
 count_debug = 0
+running = True  # 添加running变量定义，用于控制程序运行状态
+
+def signal_handler(signum, frame):
+    """
+    信号处理函数
+    处理用户中断信号（如Ctrl+C），实现程序优雅退出
+    """
+    global running
+    print("\n⚠️ 收到中断信号，正在优雅退出...", flush=True)
+    running = False
+
+# 注册信号处理器，捕获Ctrl+C等中断信号
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 if not TUSHARE_TOKEN:
     raise RuntimeError("Missing env TUSHARE_TOKEN")
@@ -1191,7 +1205,7 @@ def main():
         print("ℹ️ SKIP_PREDICTIONS=1，已跳过预测与报告生成", flush=True)
         # 生成占位报告，防止 GitHub Actions 报错
         report_path = "reports/strategy_report.md"
-        os.makedirs(os.path.dirname(report_path), exist_ok=True)
+        os.makedirs("reports", exist_ok=True)  # 确保reports目录存在
         with open(report_path, "w") as f:
             f.write("# 每日量化策略报告 (已跳过)\n\n")
             f.write(f"**日期**: {datetime.now().strftime('%Y-%m-%d')}\n\n")
