@@ -51,6 +51,14 @@ def fetch_financials(pro, ts_code, start_date='20180101', end_date=''):
         fields['total_revenue'] = 'total_revenue'
     if 'basic_eps' in base.columns:
         fields['basic_eps'] = 'basic_eps'
+        
+    # (v39 新增) 资产负债表字段
+    if 'total_assets' in base.columns:
+        fields['total_assets'] = 'total_assets'
+    if 'total_liab' in base.columns:
+        fields['total_liab'] = 'total_liab'
+    if 'total_hldr_eqy_exc_min_int' in base.columns:
+        fields['total_hldr_eqy_exc_min_int'] = 'total_hldr_eqy_exc_min_int'
 
     # 合并各表（健壮合并：根据两个表中都存在的键进行 merge）
     dfs = [df for df in [df_inc, df_bal, df_cfs] if not df.empty]

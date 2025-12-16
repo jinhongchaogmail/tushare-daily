@@ -338,3 +338,67 @@ def merge_alternative_data(df_main: pd.DataFrame,
         df = pd.merge(df, df_block, on=merge_keys, how='left')
     
     return df
+
+
+def fetch_income(pro, ts_code: str, start_date: str, end_date: str = None) -> pd.DataFrame:
+    """
+    获取利润表数据
+    
+    Args:
+        pro: Tushare Pro API 实例
+        ts_code: 股票代码
+        start_date: 开始日期
+        end_date: 结束日期
+    """
+    if pro is None:
+        return pd.DataFrame()
+    
+    if end_date is None:
+        end_date = datetime.now().strftime('%Y%m%d')
+        
+    try:
+        # 关键字段: 归母净利润, 营业总收入, 基本每股收益
+        fields = 'ts_code,ann_date,f_ann_date,end_date,report_type,n_income_attr_p,total_revenue,basic_eps'
+        df = pro.income(ts_code=ts_code, start_date=start_date, end_date=end_date, fields=fields)
+        if df is not None and not df.empty:
+            # 转换日期
+            for col in ['ann_date', 'f_ann_date', 'end_date']:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], format='%Y%m%d')
+            return df
+    except Exception as e:
+        logger.debug(f"获取利润表失败 {ts_code}: {e}")
+        
+    return pd.DataFrame()
+
+
+def fetch_balancesheet(pro, ts_code: str, start_date: str, end_date: str = None) -> pd.DataFrame:
+    """
+    获取资产负债表数据
+    
+    Args:
+        pro: Tushare Pro API 实例
+        ts_code: 股票代码
+        start_date: 开始日期
+        end_date: 结束日期
+    """
+    if pro is None:
+        return pd.DataFrame()
+    
+    if end_date is None:
+        end_date = datetime.now().strftime('%Y%m%d')
+        
+    try:
+        # 关键字段: 资产总计, 负债合计, 股东权益合计
+        fields = 'ts_code,ann_date,f_ann_date,end_date,report_type,total_assets,total_liab,total_hldr_eqy_exc_min_int'
+        df = pro.balancesheet(ts_code=ts_code, start_date=start_date, end_date=end_date, fields=fields)
+        if df is not None and not df.empty:
+            # 转换日期
+            for col in ['ann_date', 'f_ann_date', 'end_date']:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], format='%Y%m%d')
+            return df
+    except Exception as e:
+        logger.debug(f"获取资产负债表失败 {ts_code}: {e}")
+        
+    return pd.DataFrame()

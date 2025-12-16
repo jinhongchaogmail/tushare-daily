@@ -79,16 +79,25 @@ def apply_technical_indicators(df):
     )
     
     # MACD 柱状图变化率
-    df['macd_histogram_change'] = df['MACDh_12_26_9'].diff()
-    
+    if 'MACDh_12_26_9' in df.columns:
+        df['macd_histogram_change'] = df['MACDh_12_26_9'].diff()
+    else:
+        df['macd_histogram_change'] = 0
+
     # --- 趋势强度特征 ---
-    df['trend_strength'] = df['ADX_14'] / 100.0
+    if 'ADX_14' in df.columns:
+        df['trend_strength'] = df['ADX_14'] / 100.0
+    else:
+        df['trend_strength'] = 0
     
     # 均线排列
-    df['ma_alignment'] = (
-        (df['SMA_5'] > df['SMA_10']).astype(int) +
-        (df['SMA_10'] > df['SMA_20']).astype(int)
-    ) / 2.0
+    if 'SMA_5' in df.columns and 'SMA_10' in df.columns and 'SMA_20' in df.columns:
+        df['ma_alignment'] = (
+            (df['SMA_5'] > df['SMA_10']).astype(int) +
+            (df['SMA_10'] > df['SMA_20']).astype(int)
+        ) / 2.0
+    else:
+        df['ma_alignment'] = 0
     
     # 布林带位置
     bb_middle = (df['BBU_5_2.0_2.0'] + df['BBL_5_2.0_2.0']) / 2
@@ -237,6 +246,21 @@ def apply_technical_indicators(df):
         # 每股收益变化
         if 'basic_eps' in df.columns:
             df['basic_eps_yoy'] = df['basic_eps'] / df['basic_eps'].shift(252) - 1
+
+        # (v39 新增) 盈利能力与偿债能力
+        if 'total_hldr_eqy_exc_min_int' in df.columns:
+            # ROE (净资产收益率) = 净利润 / 股东权益
+            df['roe'] = df['n_income_attr_p'] / (df['total_hldr_eqy_exc_min_int'] + 1e-8)
+            
+        if 'total_assets' in df.columns:
+            # ROA (总资产收益率) = 净利润 / 总资产
+            df['roa'] = df['n_income_attr_p'] / (df['total_assets'] + 1e-8)
+            # 资产周转率 = 营收 / 总资产
+            df['asset_turnover'] = df['total_revenue'] / (df['total_assets'] + 1e-8)
+            
+        if 'total_liab' in df.columns and 'total_assets' in df.columns:
+            # 资产负债率
+            df['debt_to_asset'] = df['total_liab'] / (df['total_assets'] + 1e-8)
 
     # --- (v36 优化) 精简特征，删除冗余别名 ---
     # 

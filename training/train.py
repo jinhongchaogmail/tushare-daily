@@ -181,12 +181,12 @@ try:
     from sklearn.preprocessing import LabelEncoder
     from imblearn.under_sampling import RandomUnderSampler
     
-    # 添加 shared 到路径以便导入 feature_engineering
-    # sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'shared'))
+    # 添加项目根目录到路径以便导入 shared
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     try:
-        from features import apply_technical_indicators
+        from shared.features import apply_technical_indicators
     except ImportError:
-        print("警告：无法从 shared 导入特征工程。如果可用，将使用本地定义。")
+        print("警告：无法从 shared 导入特征工程。")
 
     # Optuna/CatBoost 部分的导入
     import optuna
@@ -769,7 +769,9 @@ def run_optuna_study(combined_df, base_save_path):
             # 衍生绝对值
             'margin_balance', 'short_balance', 'margin_net_buy', 'short_net_sell', # 防御性排除
             'top_net_buy', # 防御性排除
-            'margin_balance_ma5', 'block_amount', 'block_vol'
+            'margin_balance_ma5', 'block_amount', 'block_vol',
+            # (v39) 排除旧别名，强制使用 volatility_ma5
+            'vol_ma5'
         }
         # 排除所有以 'future_' 或 'shift' 开头的 (保持原逻辑)
         exclude |= {c for c in df.columns if c.lower().startswith('future_') or 'shift' in c.lower() or c in exclude}

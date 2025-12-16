@@ -104,3 +104,26 @@ export ALL_PROXY="socks5://127.0.0.1:1088"
 
 注意: Git 对 SOCKS 代理的原生支持有限，如需通过 SOCKS 使用 git，可使用 `proxychains` 或 `torsocks`。
 
+
+## 开发快速启动
+
+本仓库包含若干开发者友好的工具，便于快速在本地跑通数据处理与预测流程，而无需等待全量下载。
+
+- 使用 `Makefile` 简化常用操作：
+
+```bash
+make deps       # 安装依赖
+make run-local  # 运行 dev/run_local.py，处理默认样例股票
+```
+
+- 本地调试 runner：`dev/run_local.py`
+
+示例：
+
+```bash
+python dev/run_local.py --codes 000001.SZ --start 20230101
+python dev/run_local.py --no-network  # 仅测试特征计算，依赖本地 data 文件
+```
+
+解释：`dev/run_local.py` 会复用 `daily_run.py` 的 `get_hist` / `predict_stock` / `generate_report`，因此是轻量且接近生产流程的调试方式。
+
