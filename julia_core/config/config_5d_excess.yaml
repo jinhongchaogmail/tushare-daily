@@ -1,0 +1,13 @@
+# 5日超额收益模型配置
+inherit: config_base.yaml
+
+target:
+  period: 5
+  type: "excess"
+  index_code: "000001.SH"
+
+optuna:
+  n_trials: 20
+
+output:
+  model_dir: "models/daily/5d_excess"

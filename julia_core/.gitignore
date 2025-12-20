@@ -1,0 +1,22 @@
+# Julia
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+Manifest.toml
+
+# Python/CondaPkg
+.CondaPkg/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Output/Cache
+catboost_info/
+*.cbm
+*.log
+
+# Temporary
+.trash/

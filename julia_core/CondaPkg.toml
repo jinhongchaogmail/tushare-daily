@@ -1,0 +1,14 @@
+[deps]
+scikit-learn = ""
+pandas = ""
+pandas-ta = ""
+catboost = ""
+numba = ""
+numpy = ""
+optuna = ""
+
+[pip]
+xcsc-tushare = ""
+
+    [pip.deps]
+    xcsc-tushare = ""

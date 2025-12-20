@@ -1,0 +1,12 @@
+# 5日绝对收益模型配置
+inherit: config_base.yaml
+
+target:
+  period: 5
+  type: "absolute"
+
+optuna:
+  n_trials: 20
+
+output:
+  model_dir: "models/daily/5d_absolute"

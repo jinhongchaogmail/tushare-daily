@@ -1,0 +1,17 @@
+# 20日绝对收益模型配置 (战略模型)
+inherit: config_base.yaml
+
+target:
+  period: 20
+  type: "absolute"
+
+# 20日模型可能需要更深的树和更多迭代
+model:
+  iterations: [1500, 3500]
+  depth: [6, 12]
+
+optuna:
+  n_trials: 50
+
+output:
+  model_dir: "models/daily/20d_absolute"

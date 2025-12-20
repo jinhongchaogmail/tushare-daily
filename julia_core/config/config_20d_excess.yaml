@@ -1,0 +1,18 @@
+# 20日超额收益模型配置 (战略Alpha模型)
+inherit: config_base.yaml
+
+target:
+  period: 20
+  type: "excess"
+  index_code: "000001.SH"
+
+# 20日模型可能需要更深的树和更多迭代
+model:
+  iterations: [1500, 3500]
+  depth: [6, 12]
+
+optuna:
+  n_trials: 50
+
+output:
+  model_dir: "models/daily/20d_excess"

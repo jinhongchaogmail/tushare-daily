@@ -3,23 +3,27 @@ __pycache__/
 *.tar.gz
 *.log
 tmp/
-.ipynb_checkpoints/
+.venv/
+.vscode/
 catboost_info/
 optuna_results/
-venv_new/
-data/
-optuna/temp_repo/
-optuna_env/
-training/temp_repo/
+training/catboost_info/
 secrets.sh
-reports/
-.venv/
-skipped.csv
-.DS_Store
-.vscode/
-training/
-logs/
-docs/
-backups/
-feature_cache_*.parquet
-data.zip
+data/
+julia-1.11.8/
+julia-1.11.8.tar.gz
+julia-1.11.8-linux-x86_64.tar.gz
+
+# Julia/CondaPkg (root level)
+.CondaPkg/
+Manifest.toml
+*.jl.cov
+*.jl.mem
+
+# Julia Core
+julia_core/.CondaPkg/
+julia_core/catboost_info/
+julia_core/Manifest.toml
+
+# Trash
+.trash/
