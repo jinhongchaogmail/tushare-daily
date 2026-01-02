@@ -6,7 +6,7 @@ on:
       - main
       - ci/daily-run-clean
   schedule:
-    - cron: "5 10 * * 1-5"  # UTC 10:05 = Beijing 18:05
+ #   - cron: "5 10 * * 1-5"  # UTC 10:05 = Beijing 18:05
   workflow_dispatch:
 
 concurrency:
